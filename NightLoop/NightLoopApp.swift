@@ -20,5 +20,9 @@ struct NightLoopApp: App {
         .defaultSize(width: 420, height: 760)
         .windowResizability(.contentMinSize)
         .modelContainer(modelContainer)
+
+        Settings {
+            SettingsView()
+        }
     }
 }

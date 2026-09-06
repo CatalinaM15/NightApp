@@ -2,7 +2,12 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openSettings) private var openSettings
     @AppStorage("floatsAboveOtherWindows") private var floatsAboveOtherWindows = true
+    @AppStorage("joinsAllSpaces") private var joinsAllSpaces = false
+    @AppStorage("nightlyReminderEnabled") private var reminderEnabled = false
+    @AppStorage("nightlyReminderHour") private var reminderHour = 21
+    @AppStorage("nightlyReminderMinute") private var reminderMinute = 0
     @StateObject private var dayCoordinator = JournalDayCoordinator()
     @StateObject private var undoCoordinator = CompletionUndoCoordinator()
 
@@ -32,7 +37,10 @@ struct RootView: View {
         .frame(minWidth: 380, minHeight: 520)
         .foregroundStyle(JournalPalette.ink)
         .background { LeatherJournalBackground() }
-        .background(WindowConfigurator(floatsAboveOtherWindows: floatsAboveOtherWindows))
+        .background(WindowConfigurator(
+            floatsAboveOtherWindows: floatsAboveOtherWindows,
+            joinsAllSpaces: joinsAllSpaces
+        ))
         .overlay(alignment: .bottom) {
             if let message = undoCoordinator.message {
                 UndoToast(message: message, undo: undoCoordinator.undo)
@@ -42,6 +50,12 @@ struct RootView: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: undoCoordinator.message)
         .tint(JournalPalette.ember)
+        .task(id: reminderSyncID) {
+            await NightlyReminderScheduler.shared.synchronize(
+                isEnabled: reminderEnabled,
+                time: NightlyReminderTime(hour: reminderHour, minute: reminderMinute)
+            )
+        }
         .toolbar {
             ToolbarItem {
                 Toggle(isOn: $floatsAboveOtherWindows) {
@@ -50,6 +64,14 @@ struct RootView: View {
                 .toggleStyle(.button)
                 .help("Keep NightLoop above other windows")
                 .accessibilityIdentifier("keep-on-top-toggle")
+            }
+            ToolbarItem {
+                Button {
+                    openSettings()
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Open NightLoop settings")
             }
         }
     }
@@ -75,6 +97,10 @@ struct RootView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var reminderSyncID: String {
+        "\(reminderEnabled)-\(reminderHour)-\(reminderMinute)"
     }
 }
 

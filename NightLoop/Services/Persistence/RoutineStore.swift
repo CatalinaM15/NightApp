@@ -18,6 +18,7 @@ enum RoutineStore {
     static func create(
         title: String,
         iconName: String,
+        scheduledWeekdaysMask: Int = RoutineSchedule.allDaysMask,
         on date: Date = .now,
         calendar: Calendar = .autoupdatingCurrent,
         in context: ModelContext
@@ -29,7 +30,8 @@ enum RoutineStore {
             title: normalizedTitle,
             iconName: iconName,
             sortOrder: nextOrder,
-            activePeriodStartedDayKey: CivilDay(date: date, calendar: calendar).key
+            activePeriodStartedDayKey: CivilDay(date: date, calendar: calendar).key,
+            scheduledWeekdaysMask: scheduledWeekdaysMask
         ))
         try context.save()
     }
@@ -38,10 +40,12 @@ enum RoutineStore {
         _ routine: Routine,
         title: String,
         iconName: String,
+        scheduledWeekdaysMask: Int = RoutineSchedule.allDaysMask,
         in context: ModelContext
     ) throws {
         routine.title = try validatedTitle(title, excluding: routine.id, in: context)
         routine.iconName = iconName
+        routine.scheduledWeekdaysMask = scheduledWeekdaysMask
         try context.save()
     }
 

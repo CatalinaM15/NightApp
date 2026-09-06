@@ -44,9 +44,16 @@ struct RoutineManagerView: View {
             RoutineEditorView(
                 title: "Edit Routine",
                 initialTitle: routine.title,
-                initialIcon: routine.iconName
-            ) { title, icon in
-                try RoutineStore.update(routine, title: title, iconName: icon, in: modelContext)
+                initialIcon: routine.iconName,
+                initialScheduledWeekdaysMask: routine.scheduledWeekdaysMask
+            ) { title, icon, weekdays in
+                try RoutineStore.update(
+                    routine,
+                    title: title,
+                    iconName: icon,
+                    scheduledWeekdaysMask: weekdays,
+                    in: modelContext
+                )
             }
         }
         .alert("Routine Error", isPresented: Binding(

@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-@Model
-final class ProjectStep {
+extension NightLoopSchemaV2 {
+@Model final class ProjectStep {
     @Attribute(.unique) var id: UUID
     var title: String
     var order: Int
@@ -28,3 +28,6 @@ final class ProjectStep {
 
     var isCompleted: Bool { completedAt != nil }
 }
+}
+
+typealias ProjectStep = NightLoopSchemaV2.ProjectStep

@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-@Model
-final class RoutineCompletion {
+extension NightLoopSchemaV2 {
+@Model final class RoutineCompletion {
     @Attribute(.unique) var id: UUID
     var dayKey: String
     var completedAt: Date
@@ -23,3 +23,6 @@ final class RoutineCompletion {
         self.routine = routine
     }
 }
+}
+
+typealias RoutineCompletion = NightLoopSchemaV2.RoutineCompletion

@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-@Model
-final class NightProject {
+extension NightLoopSchemaV2 {
+@Model final class NightProject {
     @Attribute(.unique) var id: UUID
     var name: String
     var createdAt: Date
@@ -30,3 +30,6 @@ final class NightProject {
     var isCompleted: Bool { completedAt != nil }
     var completedStepCount: Int { steps.lazy.filter(\.isCompleted).count }
 }
+}
+
+typealias NightProject = NightLoopSchemaV2.NightProject

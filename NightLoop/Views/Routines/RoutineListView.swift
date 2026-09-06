@@ -13,7 +13,9 @@ struct RoutineListView: View {
     @State private var showsRoutineManager = false
     @State private var errorMessage: String?
 
-    private var activeRoutines: [Routine] { routines.filter(\.isActive) }
+    private var activeRoutines: [Routine] {
+        routines.filter { $0.isActive && $0.isScheduled(on: date) }
+    }
     private var dayKey: String { CivilDay(date: date).key }
 
     var body: some View {
@@ -55,8 +57,14 @@ struct RoutineListView: View {
             }
         }
         .sheet(isPresented: $showsNewRoutine) {
-            RoutineEditorView(title: "New Routine") { title, icon in
-                try RoutineStore.create(title: title, iconName: icon, on: date, in: modelContext)
+            RoutineEditorView(title: "New Routine") { title, icon, weekdays in
+                try RoutineStore.create(
+                    title: title,
+                    iconName: icon,
+                    scheduledWeekdaysMask: weekdays,
+                    on: date,
+                    in: modelContext
+                )
             }
         }
         .sheet(isPresented: $showsRoutineManager) {

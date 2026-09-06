@@ -70,6 +70,38 @@ struct RoutineWorkflowTests {
         #expect(first.sortOrder == 1)
     }
 
+    @Test func weekdayScheduleControlsVisibility() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Bogota")!
+        let monday = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 7, hour: 20)))
+        let tuesday = try #require(calendar.date(byAdding: .day, value: 1, to: monday))
+        let routine = Routine(
+            title: "Weekdays",
+            scheduledWeekdaysMask: RoutineWeekday.monday.bit | RoutineWeekday.wednesday.bit
+        )
+
+        #expect(routine.isScheduled(on: monday, calendar: calendar))
+        #expect(!routine.isScheduled(on: tuesday, calendar: calendar))
+        #expect(Routine(title: "Every day").scheduledWeekdaysMask == RoutineSchedule.allDaysMask)
+    }
+
+    @Test func scheduledStreakSkipsDaysWhenRoutineDoesNotAppear() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Bogota")!
+        let wednesday = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 9, hour: 20)))
+        let routine = Routine(
+            title: "Monday and Wednesday",
+            activePeriodStartedDayKey: "2026-09-01",
+            scheduledWeekdaysMask: RoutineWeekday.monday.bit | RoutineWeekday.wednesday.bit
+        )
+        routine.completions = [
+            RoutineCompletion(dayKey: "2026-09-07", completedAt: .now, timeZoneIdentifier: calendar.timeZone.identifier),
+            RoutineCompletion(dayKey: "2026-09-09", completedAt: .now, timeZoneIdentifier: calendar.timeZone.identifier)
+        ]
+
+        #expect(RoutineStreakCalculator.currentStreak(for: routine, on: wednesday, calendar: calendar) == 2)
+    }
+
     @Test func dayCoordinatorRollsOverOnlyWhenCivilDayChanges() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Bogota")!

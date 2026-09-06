@@ -2,7 +2,7 @@ import SwiftData
 
 enum ModelContainerFactory {
     static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: NightLoopSchemaV1.self)
+        let schema = Schema(versionedSchema: NightLoopSchemaV2.self)
         let configuration = ModelConfiguration(
             "NightLoopLocal",
             schema: schema,
