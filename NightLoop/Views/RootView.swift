@@ -11,12 +11,10 @@ struct RootView: View {
                 header
                 WeeklyGlanceStrip(referenceDate: dayCoordinator.visibleDate)
                 JournalSection(title: "Tomorrow", systemImage: "calendar") {
-                    ContentUnavailableView(
-                        "Calendar Not Connected",
-                        systemImage: "calendar.badge.exclamationmark",
-                        description: Text("Calendar access arrives in Milestone 3.")
+                    TomorrowEventsSection(
+                        referenceDate: dayCoordinator.visibleDate,
+                        refreshRevision: dayCoordinator.calendarRefreshRevision
                     )
-                    .frame(maxWidth: .infinity)
                 }
                 JournalSection(title: "Evening Ritual", systemImage: "moon.stars") {
                     RoutineListView(
