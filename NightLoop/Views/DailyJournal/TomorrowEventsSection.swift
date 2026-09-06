@@ -84,8 +84,10 @@ struct TomorrowEventsSection: View {
                     Task { await viewModel.refresh(relativeTo: referenceDate) }
                 }
                 .labelStyle(.iconOnly)
+                .buttonStyle(JournalIconButtonStyle())
                 .help("Refresh calendar")
                 .disabled(viewModel.isLoading)
+                .accessibilityIdentifier("calendar-refresh-button")
             }
         }
     }
@@ -123,7 +125,7 @@ private struct CalendarEventRow: View {
                     .foregroundStyle(.secondary)
                 Text(event.calendarTitle)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(JournalPalette.paperSecondaryInk.opacity(0.82))
             }
             Spacer(minLength: 0)
         }

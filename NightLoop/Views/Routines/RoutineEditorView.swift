@@ -44,10 +44,11 @@ struct RoutineEditorView: View {
                     } label: {
                         Image(systemName: icon)
                             .frame(width: 28, height: 28)
-                            .background(iconName == icon ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                            .background(iconName == icon ? JournalPalette.ember.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(icon)
+                    .accessibilityValue(iconName == icon ? "Selected" : "Not selected")
                     .accessibilityAddTraits(iconName == icon ? .isSelected : [])
                 }
             }

@@ -10,6 +10,7 @@ struct ProjectPickerView: View {
 
     @State private var selectedProjectID: UUID?
     @State private var showsNewProject = false
+    @State private var showsQuickAdd = false
     @State private var showsCompletedProjects = false
 
     private var activeProjects: [NightProject] {
@@ -29,6 +30,7 @@ struct ProjectPickerView: View {
                     selectProject: { selectedProjectID = $0 },
                     showCompletedProjects: { showsCompletedProjects = true },
                     createProject: { showsNewProject = true },
+                    quickAddProject: { showsQuickAdd = true },
                     undoCoordinator: undoCoordinator
                 )
             } else if activeProjects.isEmpty {
@@ -43,7 +45,16 @@ struct ProjectPickerView: View {
                         Label("Completed Projects", systemImage: "archivebox")
                     }
                     .labelStyle(.iconOnly)
+                    .buttonStyle(JournalIconButtonStyle())
                     .help("Completed projects")
+                    Button {
+                        showsQuickAdd = true
+                    } label: {
+                        Label("Quick Add Project", systemImage: "text.badge.plus")
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(JournalIconButtonStyle())
+                    .help("Quick Add project")
                 }
                 Button("Create Project") { showsNewProject = true }
             }
@@ -58,6 +69,9 @@ struct ProjectPickerView: View {
         }
         .sheet(isPresented: $showsCompletedProjects) {
             CompletedProjectsView()
+        }
+        .sheet(isPresented: $showsQuickAdd) {
+            QuickAddSheetView { project in selectedProjectID = project.id }
         }
     }
 

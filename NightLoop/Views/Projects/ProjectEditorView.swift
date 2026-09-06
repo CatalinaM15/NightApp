@@ -48,6 +48,7 @@ struct ProjectEditorView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(tag) accent")
+                    .accessibilityValue(colorTag == tag ? "Selected" : "Not selected")
                     .accessibilityAddTraits(colorTag == tag ? .isSelected : [])
                 }
             }
@@ -78,12 +79,6 @@ struct ProjectEditorView: View {
 
 enum ProjectAccent {
     static func color(for tag: String?) -> Color {
-        switch tag {
-        case "ember": .orange
-        case "gold": .yellow
-        case "forest": .green
-        case "slate": .gray
-        default: Color(red: 0.55, green: 0.12, blue: 0.18)
-        }
+        JournalPalette.projectAccent(for: tag)
     }
 }

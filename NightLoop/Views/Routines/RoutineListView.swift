@@ -29,6 +29,7 @@ struct RoutineListView: View {
                     Label("Manage Routines", systemImage: "slider.horizontal.3")
                 }
                 .labelStyle(.iconOnly)
+                .buttonStyle(JournalIconButtonStyle())
                 .help("Manage routines")
                 Button {
                     showsNewRoutine = true
@@ -36,6 +37,7 @@ struct RoutineListView: View {
                     Label("New Routine", systemImage: "plus")
                 }
                 .labelStyle(.iconOnly)
+                .buttonStyle(JournalIconButtonStyle())
                 .help("New routine")
             }
 
@@ -97,11 +99,12 @@ private struct RoutineRowView: View {
             Button(action: complete) {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isCompleted ? Color.accentColor : .secondary)
+                    .foregroundStyle(isCompleted ? Color(red: 0.24, green: 0.42, blue: 0.25) : JournalPalette.paperSecondaryInk)
             }
             .buttonStyle(.plain)
             .disabled(isCompleted)
             .accessibilityLabel(isCompleted ? "\(routine.title), completed" : "Complete \(routine.title)")
+            .frame(minWidth: 28, minHeight: 28)
 
             Image(systemName: routine.iconName)
                 .frame(width: 18)
@@ -113,7 +116,7 @@ private struct RoutineRowView: View {
             if let streak, streak > 0 {
                 Label("\(streak)", systemImage: "flame.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(JournalPalette.ember)
                     .accessibilityLabel("\(streak) day streak")
             }
         }

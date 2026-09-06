@@ -21,6 +21,12 @@ enum ProjectStoreError: LocalizedError, Equatable {
     }
 }
 
+struct ProjectStepEdit: Identifiable, Equatable {
+    let id: UUID
+    var title: String
+    var weekNumber: Int
+}
+
 @MainActor
 enum ProjectStore {
     @discardableResult
@@ -46,6 +52,69 @@ enum ProjectStore {
         project.name = try validatedProjectName(name, excluding: project.id, in: context)
         project.colorTag = colorTag
         try context.save()
+    }
+
+    static func applyEdits(
+        to project: NightProject,
+        name: String,
+        colorTag: String?,
+        orderedSteps: [ProjectStepEdit],
+        at date: Date = .now,
+        in context: ModelContext
+    ) throws {
+        let normalizedName = try validatedProjectName(name, excluding: project.id, in: context)
+        let normalizedEdits = (1...4).flatMap { week in
+            orderedSteps.filter { $0.weekNumber == week }
+        }
+        let existingByID = Dictionary(uniqueKeysWithValues: project.steps.map { ($0.id, $0) })
+        guard normalizedEdits.count == orderedSteps.count,
+              normalizedEdits.allSatisfy({ existingByID[$0.id] != nil }) else { return }
+
+        var normalizedTitles: Set<String> = []
+        for edit in normalizedEdits {
+            let title = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { throw ProjectStoreError.emptyStepTitle }
+            guard (1...4).contains(edit.weekNumber) else { throw ProjectStoreError.invalidWeek }
+            let comparisonKey = title.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            )
+            guard normalizedTitles.insert(comparisonKey).inserted else {
+                throw ProjectStoreError.duplicateStepTitle
+            }
+        }
+        let grouped = Dictionary(grouping: normalizedEdits, by: \.weekNumber)
+        guard !grouped.values.contains(where: { $0.count > 3 }) else {
+            throw ProjectStoreError.weekIsFull
+        }
+
+        project.name = normalizedName
+        project.colorTag = colorTag
+        let retainedIDs = Set(normalizedEdits.map(\.id))
+        let removedSteps = project.steps.filter { !retainedIDs.contains($0.id) }
+        for step in removedSteps {
+            context.delete(step)
+        }
+        for (order, edit) in normalizedEdits.enumerated() {
+            guard let step = existingByID[edit.id] else { continue }
+            step.title = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            step.weekNumber = edit.weekNumber
+            step.order = order
+        }
+
+        let retainedSteps = normalizedEdits.compactMap { existingByID[$0.id] }
+        if retainedSteps.isEmpty {
+            project.completedAt = nil
+        } else if retainedSteps.allSatisfy(\.isCompleted) {
+            project.completedAt = date
+        }
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     @discardableResult

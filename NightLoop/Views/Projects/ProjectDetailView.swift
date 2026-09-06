@@ -9,12 +9,12 @@ struct ProjectDetailView: View {
     let selectProject: (UUID) -> Void
     let showCompletedProjects: () -> Void
     let createProject: () -> Void
+    let quickAddProject: () -> Void
     @ObservedObject var undoCoordinator: CompletionUndoCoordinator
 
     @State private var showsProjectEditor = false
     @State private var showsProjectSwitcher = false
     @State private var showsNewStep = false
-    @State private var editingStep: ProjectStep?
     @State private var errorMessage: String?
 
     private var orderedSteps: [ProjectStep] {
@@ -39,26 +39,11 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showsProjectEditor) {
-            ProjectEditorView(
-                heading: "Edit Project",
-                initialName: project.name,
-                initialColorTag: project.colorTag
-            ) { name, colorTag in
-                try ProjectStore.update(project, name: name, colorTag: colorTag, in: modelContext)
-            }
+            ProjectEditView(project: project)
         }
         .sheet(isPresented: $showsNewStep) {
             ProjectStepEditorView(heading: "New Step", initialWeekNumber: suggestedWeek) { title, week in
                 try ProjectStore.addStep(to: project, title: title, weekNumber: week, in: modelContext)
-            }
-        }
-        .sheet(item: $editingStep) { step in
-            ProjectStepEditorView(
-                heading: "Edit Step",
-                initialTitle: step.title,
-                initialWeekNumber: step.weekNumber
-            ) { title, week in
-                try ProjectStore.updateStep(step, title: title, weekNumber: week, in: modelContext)
             }
         }
         .alert("Project Error", isPresented: Binding(
@@ -91,6 +76,7 @@ struct ProjectDetailView: View {
             }
             .buttonStyle(.plain)
             .help("Switch project")
+            .accessibilityHint("Shows the list of active projects")
             .popover(isPresented: $showsProjectSwitcher, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(activeProjects) { candidate in
@@ -125,23 +111,33 @@ struct ProjectDetailView: View {
                 Label("Edit Project", systemImage: "pencil")
             }
             .labelStyle(.iconOnly)
+            .buttonStyle(JournalIconButtonStyle())
             .help("Edit project")
             Button(action: showCompletedProjects) {
                 Label("Completed Projects", systemImage: "archivebox")
             }
             .labelStyle(.iconOnly)
+            .buttonStyle(JournalIconButtonStyle())
             .help("Completed projects")
+            Button(action: quickAddProject) {
+                Label("Quick Add Project", systemImage: "text.badge.plus")
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(JournalIconButtonStyle())
+            .help("Quick Add project")
             Button {
                 showsNewStep = true
             } label: {
                 Label("Add Step", systemImage: "plus.circle")
             }
             .labelStyle(.iconOnly)
+            .buttonStyle(JournalIconButtonStyle())
             .help("Add step")
             Button(action: createProject) {
                 Label("New Project", systemImage: "plus")
             }
             .labelStyle(.iconOnly)
+            .buttonStyle(JournalIconButtonStyle())
             .help("New project")
         }
     }
@@ -165,6 +161,7 @@ struct ProjectDetailView: View {
         }
         .buttonStyle(.plain)
         .help("This project has no steps, so it can be completed directly")
+        .padding(.vertical, 5)
     }
 
     private func weekSection(_ week: Int) -> some View {
@@ -176,10 +173,7 @@ struct ProjectDetailView: View {
             ForEach(orderedSteps.filter { $0.weekNumber == week }) { step in
                 ProjectStepRow(
                     step: step,
-                    complete: { complete(step) },
-                    edit: { editingStep = step },
-                    moveUp: { perform { try ProjectStore.moveStep(step, by: -1, in: modelContext) } },
-                    moveDown: { perform { try ProjectStore.moveStep(step, by: 1, in: modelContext) } }
+                    complete: { complete(step) }
                 )
             }
         }
@@ -218,9 +212,6 @@ struct ProjectDetailView: View {
 private struct ProjectStepRow: View {
     let step: ProjectStep
     let complete: () -> Void
-    let edit: () -> Void
-    let moveUp: () -> Void
-    let moveDown: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -231,24 +222,14 @@ private struct ProjectStepRow: View {
             .buttonStyle(.plain)
             .disabled(step.isCompleted)
             .accessibilityLabel(step.isCompleted ? "\(step.title), completed" : "Complete \(step.title)")
+            .frame(minWidth: 28, minHeight: 28)
+            .foregroundStyle(step.isCompleted ? Color(red: 0.24, green: 0.42, blue: 0.25) : JournalPalette.paperSecondaryInk)
 
             Text(step.title)
                 .strikethrough(step.isCompleted)
                 .foregroundStyle(step.isCompleted ? .secondary : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !step.isCompleted {
-                Menu {
-                    Button("Edit", systemImage: "pencil", action: edit)
-                    Button("Move Up", systemImage: "chevron.up", action: moveUp)
-                    Button("Move Down", systemImage: "chevron.down", action: moveDown)
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Step options")
-            }
         }
         .padding(.vertical, 3)
     }

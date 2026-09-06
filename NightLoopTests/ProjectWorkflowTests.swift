@@ -64,4 +64,47 @@ struct ProjectWorkflowTests {
         #expect(second.order < first.order)
         #expect(Set(project.steps.map(\.order)).count == project.steps.count)
     }
+
+    @Test func projectEditAppliesRenameReorderAndDeletionTogether() throws {
+        let container = try ModelContainerFactory.makeContainer(inMemory: true)
+        let context = container.mainContext
+        let project = try ProjectStore.create(name: "Draft", colorTag: "garnet", in: context)
+        let first = try ProjectStore.addStep(to: project, title: "First", weekNumber: 1, in: context)
+        let second = try ProjectStore.addStep(to: project, title: "Second", weekNumber: 1, in: context)
+        let removed = try ProjectStore.addStep(to: project, title: "Remove me", weekNumber: 2, in: context)
+
+        try ProjectStore.applyEdits(
+            to: project,
+            name: "Final",
+            colorTag: "forest",
+            orderedSteps: [
+                ProjectStepEdit(id: second.id, title: "Second edited", weekNumber: 1),
+                ProjectStepEdit(id: first.id, title: "First", weekNumber: 1)
+            ],
+            in: context
+        )
+
+        #expect(project.name == "Final")
+        #expect(project.colorTag == "forest")
+        #expect(project.steps.sorted { $0.order < $1.order }.map(\.title) == ["Second edited", "First"])
+        #expect(try context.fetch(FetchDescriptor<ProjectStep>()).contains { $0.id == removed.id } == false)
+    }
+
+    @Test func deletingEveryStepReturnsProjectToManualCompletionMode() throws {
+        let container = try ModelContainerFactory.makeContainer(inMemory: true)
+        let context = container.mainContext
+        let project = try ProjectStore.create(name: "Draft", colorTag: nil, in: context)
+        _ = try ProjectStore.addStep(to: project, title: "Only", weekNumber: 1, in: context)
+
+        try ProjectStore.applyEdits(
+            to: project,
+            name: project.name,
+            colorTag: project.colorTag,
+            orderedSteps: [],
+            in: context
+        )
+
+        #expect(project.steps.isEmpty)
+        #expect(!project.isCompleted)
+    }
 }
