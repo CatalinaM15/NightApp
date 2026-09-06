@@ -23,8 +23,7 @@ struct RootView: View {
                     )
                 }
                 JournalSection(title: "Projects", systemImage: "checklist") {
-                    Text("Your active project steps will live here.")
-                        .foregroundStyle(.secondary)
+                    ProjectPickerView(undoCoordinator: undoCoordinator)
                 }
             }
             .padding(24)
