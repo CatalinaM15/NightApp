@@ -3,6 +3,17 @@ import SwiftData
 
 @MainActor
 enum RoutineCompletionStore {
+    static func completion(
+        for routine: Routine,
+        dayKey: String,
+        in context: ModelContext
+    ) throws -> RoutineCompletion? {
+        let descriptor = FetchDescriptor<RoutineCompletion>(
+            predicate: #Predicate { $0.dayKey == dayKey }
+        )
+        return try context.fetch(descriptor).first(where: { $0.routine?.id == routine.id })
+    }
+
     @discardableResult
     static func complete(
         _ routine: Routine,
@@ -12,11 +23,7 @@ enum RoutineCompletionStore {
         in context: ModelContext
     ) throws -> RoutineCompletion {
         let dayKey = CivilDay(date: date, calendar: calendar).key
-        let descriptor = FetchDescriptor<RoutineCompletion>(
-            predicate: #Predicate { $0.dayKey == dayKey }
-        )
-
-        if let existing = try context.fetch(descriptor).first(where: { $0.routine?.id == routine.id }) {
+        if let existing = try completion(for: routine, dayKey: dayKey, in: context) {
             return existing
         }
 

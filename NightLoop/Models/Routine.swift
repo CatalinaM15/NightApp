@@ -8,6 +8,7 @@ final class Routine {
     var iconName: String
     var sortOrder: Int
     var isActive: Bool
+    var activePeriodStartedDayKey: String
 
     @Relationship(deleteRule: .cascade, inverse: \RoutineCompletion.routine)
     var completions: [RoutineCompletion]
@@ -17,13 +18,15 @@ final class Routine {
         title: String,
         iconName: String = "moon.stars",
         sortOrder: Int = 0,
-        isActive: Bool = true
+        isActive: Bool = true,
+        activePeriodStartedDayKey: String = CivilDay(date: .now).key
     ) {
         self.id = id
         self.title = title
         self.iconName = iconName
         self.sortOrder = sortOrder
         self.isActive = isActive
+        self.activePeriodStartedDayKey = activePeriodStartedDayKey
         self.completions = []
     }
 }

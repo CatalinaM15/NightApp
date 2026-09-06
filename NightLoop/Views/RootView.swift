@@ -2,12 +2,14 @@ import SwiftUI
 
 struct RootView: View {
     @AppStorage("floatsAboveOtherWindows") private var floatsAboveOtherWindows = true
+    @StateObject private var dayCoordinator = JournalDayCoordinator()
+    @StateObject private var undoCoordinator = CompletionUndoCoordinator()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
-                WeeklyGlanceStrip()
+                WeeklyGlanceStrip(referenceDate: dayCoordinator.visibleDate)
                 JournalSection(title: "Tomorrow", systemImage: "calendar") {
                     ContentUnavailableView(
                         "Calendar Not Connected",
@@ -17,8 +19,10 @@ struct RootView: View {
                     .frame(maxWidth: .infinity)
                 }
                 JournalSection(title: "Evening Ritual", systemImage: "moon.stars") {
-                    Text("Your routines will live here.")
-                        .foregroundStyle(.secondary)
+                    RoutineListView(
+                        date: dayCoordinator.visibleDate,
+                        undoCoordinator: undoCoordinator
+                    )
                 }
                 JournalSection(title: "Projects", systemImage: "checklist") {
                     Text("Your active project steps will live here.")
@@ -30,6 +34,14 @@ struct RootView: View {
         .frame(minWidth: 380, minHeight: 520)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(WindowConfigurator(floatsAboveOtherWindows: floatsAboveOtherWindows))
+        .overlay(alignment: .bottom) {
+            if let message = undoCoordinator.message {
+                UndoToast(message: message, undo: undoCoordinator.undo)
+                    .padding()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: undoCoordinator.message)
         .toolbar {
             ToolbarItem {
                 Toggle(isOn: $floatsAboveOtherWindows) {
@@ -45,9 +57,28 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("NightLoop")
                 .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-            Text(Date.now.formatted(date: .complete, time: .omitted))
+            Text(dayCoordinator.visibleDate.formatted(date: .complete, time: .omitted))
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct UndoToast: View {
+    let message: String
+    let undo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(message)
+                .lineLimit(1)
+            Button("Undo", action: undo)
+                .keyboardShortcut("z", modifiers: .command)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(radius: 8, y: 3)
+        .accessibilityElement(children: .contain)
     }
 }
 

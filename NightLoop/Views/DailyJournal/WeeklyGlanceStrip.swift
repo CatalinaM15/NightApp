@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WeeklyGlanceStrip: View {
+    let referenceDate: Date
     private let calendar = Calendar.autoupdatingCurrent
 
     var body: some View {
@@ -23,7 +24,7 @@ struct WeeklyGlanceStrip: View {
     }
 
     private var days: [Date] {
-        let today = calendar.startOfDay(for: .now)
+        let today = calendar.startOfDay(for: referenceDate)
         let weekday = calendar.component(.weekday, from: today)
         let offset = (weekday - calendar.firstWeekday + 7) % 7
         guard let start = calendar.date(byAdding: .day, value: -offset, to: today) else { return [] }
@@ -31,6 +32,6 @@ struct WeeklyGlanceStrip: View {
     }
 
     private func isToday(_ date: Date) -> Bool {
-        calendar.isDateInToday(date)
+        calendar.isDate(date, inSameDayAs: referenceDate)
     }
 }
