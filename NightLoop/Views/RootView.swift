@@ -1,6 +1,8 @@
+import SwiftData
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openSettings) private var openSettings
     @AppStorage("floatsAboveOtherWindows") private var floatsAboveOtherWindows = true
@@ -10,6 +12,11 @@ struct RootView: View {
     @AppStorage("nightlyReminderMinute") private var reminderMinute = 0
     @StateObject private var dayCoordinator = JournalDayCoordinator()
     @StateObject private var undoCoordinator = CompletionUndoCoordinator()
+    @State private var showsRoutineManager = false
+    @State private var showsNewRoutine = false
+    @Query private var routines: [Routine]
+
+    private var activeRoutineCount: Int { routines.filter(\.isActive).count }
 
     var body: some View {
         ScrollView {
@@ -22,11 +29,32 @@ struct RootView: View {
                         refreshRevision: dayCoordinator.calendarRefreshRevision
                     )
                 }
-                JournalSection(title: "Evening Ritual", systemImage: "moon.stars") {
+                JournalSection(title: "Today's Cards", systemImage: "sparkles") {
                     RoutineListView(
                         date: dayCoordinator.visibleDate,
                         undoCoordinator: undoCoordinator
                     )
+                } accessory: {
+                    HStack(spacing: 6) {
+                        Button {
+                            showsRoutineManager = true
+                        } label: {
+                            Label("Manage Routines", systemImage: "slider.horizontal.3")
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(JournalIconButtonStyle())
+                        .help("Manage routines")
+
+                        Button {
+                            showsNewRoutine = true
+                        } label: {
+                            Label("New Routine", systemImage: "plus")
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(JournalIconButtonStyle())
+                        .help(activeRoutineCount >= 7 ? "Seven active routines is the maximum" : "New routine")
+                        .disabled(activeRoutineCount >= 7)
+                    }
                 }
                 JournalSection(title: "Projects", systemImage: "checklist") {
                     ProjectPickerView(undoCoordinator: undoCoordinator)
@@ -50,6 +78,22 @@ struct RootView: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: undoCoordinator.message)
         .tint(JournalPalette.ember)
+        .sheet(isPresented: $showsRoutineManager) {
+            RoutineManagerView(date: dayCoordinator.visibleDate)
+        }
+        .sheet(isPresented: $showsNewRoutine) {
+            RoutineEditorView(title: "New Routine") { title, icon, weekdays, isGrouped, steps in
+                try RoutineStore.create(
+                    title: title,
+                    iconName: icon,
+                    scheduledWeekdaysMask: weekdays,
+                    isGrouped: isGrouped,
+                    steps: steps,
+                    on: dayCoordinator.visibleDate,
+                    in: modelContext
+                )
+            }
+        }
         .task(id: reminderSyncID) {
             await NightlyReminderScheduler.shared.synchronize(
                 isEnabled: reminderEnabled,
@@ -125,21 +169,35 @@ private struct UndoToast: View {
     }
 }
 
-private struct JournalSection<Content: View>: View {
+private struct JournalSection<Content: View, Accessory: View>: View {
     let title: String
     let systemImage: String
     @ViewBuilder let content: Content
+    @ViewBuilder let accessory: Accessory
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(JournalTypography.sectionTitle)
-                .foregroundStyle(JournalPalette.paperInk)
+            HStack(alignment: .center) {
+                Label(title, systemImage: systemImage)
+                    .font(JournalTypography.sectionTitle)
+                    .foregroundStyle(JournalPalette.paperInk)
+                Spacer()
+                accessory
+            }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .foregroundStyle(JournalPalette.paperInk)
         .journalCard()
+    }
+}
+
+private extension JournalSection where Accessory == EmptyView {
+    init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+        self.accessory = EmptyView()
     }
 }

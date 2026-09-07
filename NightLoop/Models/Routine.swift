@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-extension NightLoopSchemaV2 {
+extension NightLoopSchemaV3 {
 @Model final class Routine {
     @Attribute(.unique) var id: UUID
     var title: String
@@ -10,9 +10,12 @@ extension NightLoopSchemaV2 {
     var isActive: Bool
     var activePeriodStartedDayKey: String
     var scheduledWeekdaysMask: Int = RoutineSchedule.allDaysMask
+    var isGrouped: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \RoutineCompletion.routine)
     var completions: [RoutineCompletion]
+    @Relationship(deleteRule: .cascade, inverse: \NightRoutineStep.routine)
+    var steps: [NightRoutineStep]
 
     init(
         id: UUID = UUID(),
@@ -21,7 +24,8 @@ extension NightLoopSchemaV2 {
         sortOrder: Int = 0,
         isActive: Bool = true,
         activePeriodStartedDayKey: String = CivilDay(date: .now).key,
-        scheduledWeekdaysMask: Int = RoutineSchedule.allDaysMask
+        scheduledWeekdaysMask: Int = RoutineSchedule.allDaysMask,
+        isGrouped: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -30,7 +34,9 @@ extension NightLoopSchemaV2 {
         self.isActive = isActive
         self.activePeriodStartedDayKey = activePeriodStartedDayKey
         self.scheduledWeekdaysMask = scheduledWeekdaysMask
+        self.isGrouped = isGrouped
         self.completions = []
+        self.steps = []
     }
 
     func isScheduled(on date: Date, calendar: Calendar = .autoupdatingCurrent) -> Bool {
@@ -39,4 +45,4 @@ extension NightLoopSchemaV2 {
 }
 }
 
-typealias Routine = NightLoopSchemaV2.Routine
+typealias Routine = NightLoopSchemaV3.Routine

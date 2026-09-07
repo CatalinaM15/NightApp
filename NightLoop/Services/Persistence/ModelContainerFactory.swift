@@ -1,8 +1,9 @@
 import SwiftData
 
+@MainActor
 enum ModelContainerFactory {
     static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: NightLoopSchemaV2.self)
+        let schema = Schema(versionedSchema: NightLoopSchemaV3.self)
         let configuration = ModelConfiguration(
             "NightLoopLocal",
             schema: schema,
@@ -10,10 +11,12 @@ enum ModelContainerFactory {
             cloudKitDatabase: .none
         )
 
-        return try ModelContainer(
+        let container = try ModelContainer(
             for: schema,
             migrationPlan: NightLoopMigrationPlan.self,
             configurations: configuration
         )
+        try PersistenceMaintenance.removeOrphans(in: container.mainContext)
+        return container
     }
 }

@@ -54,6 +54,16 @@ enum ProjectStore {
         try context.save()
     }
 
+    static func delete(_ project: NightProject, in context: ModelContext) throws {
+        context.delete(project)
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     static func applyEdits(
         to project: NightProject,
         name: String,

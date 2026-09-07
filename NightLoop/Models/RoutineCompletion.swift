@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-extension NightLoopSchemaV2 {
+extension NightLoopSchemaV3 {
 @Model final class RoutineCompletion {
     @Attribute(.unique) var id: UUID
     var dayKey: String
@@ -25,4 +25,4 @@ extension NightLoopSchemaV2 {
 }
 }
 
-typealias RoutineCompletion = NightLoopSchemaV2.RoutineCompletion
+typealias RoutineCompletion = NightLoopSchemaV3.RoutineCompletion

@@ -16,6 +16,8 @@ struct ProjectDetailView: View {
     @State private var showsProjectSwitcher = false
     @State private var showsNewStep = false
     @State private var errorMessage: String?
+    @State private var expandedWeeks: Set<Int> = []
+    @State private var manuallyToggledWeeks: Set<Int> = []
 
     private var orderedSteps: [ProjectStep] {
         project.steps.sorted { $0.order < $1.order }
@@ -23,6 +25,16 @@ struct ProjectDetailView: View {
 
     private var usedWeeks: [Int] {
         Array(Set(orderedSteps.map(\.weekNumber))).sorted()
+    }
+
+    private var activeWeek: Int? {
+        usedWeeks.first { week in
+            orderedSteps.contains { $0.weekNumber == week && !$0.isCompleted }
+        }
+    }
+
+    private var completionSignature: [String] {
+        orderedSteps.map { "\($0.id.uuidString):\($0.isCompleted)" }
     }
 
     var body: some View {
@@ -54,6 +66,9 @@ struct ProjectDetailView: View {
         } message: {
             Text(errorMessage ?? "The project could not be updated.")
         }
+        .onAppear { resetWeekDisclosureState() }
+        .onChange(of: project.id) { _, _ in resetWeekDisclosureState() }
+        .onChange(of: completionSignature) { _, _ in applyAutomaticWeekDisclosure() }
     }
 
     private var projectHeader: some View {
@@ -165,22 +180,56 @@ struct ProjectDetailView: View {
     }
 
     private func weekSection(_ week: Int) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        DisclosureGroup(isExpanded: weekExpansionBinding(for: week)) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(orderedSteps.filter { $0.weekNumber == week }) { step in
+                    ProjectStepRow(
+                        step: step,
+                        complete: { complete(step) }
+                    )
+                }
+            }
+            .padding(.top, 4)
+        } label: {
             Text("Week \(week)")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(JournalPalette.paperSecondaryInk)
                 .textCase(.uppercase)
-            ForEach(orderedSteps.filter { $0.weekNumber == week }) { step in
-                ProjectStepRow(
-                    step: step,
-                    complete: { complete(step) }
-                )
-            }
         }
+        .tint(JournalPalette.paperSecondaryInk)
     }
 
     private var suggestedWeek: Int {
         usedWeeks.last ?? 1
+    }
+
+    private func weekExpansionBinding(for week: Int) -> Binding<Bool> {
+        Binding(
+            get: { expandedWeeks.contains(week) },
+            set: { isExpanded in
+                manuallyToggledWeeks.insert(week)
+                if isExpanded {
+                    expandedWeeks.insert(week)
+                } else {
+                    expandedWeeks.remove(week)
+                }
+            }
+        )
+    }
+
+    private func resetWeekDisclosureState() {
+        manuallyToggledWeeks.removeAll()
+        expandedWeeks = activeWeek.map { Set([$0]) } ?? []
+    }
+
+    private func applyAutomaticWeekDisclosure() {
+        for week in usedWeeks where !manuallyToggledWeeks.contains(week) {
+            if week == activeWeek {
+                expandedWeeks.insert(week)
+            } else {
+                expandedWeeks.remove(week)
+            }
+        }
     }
 
     private func complete(_ step: ProjectStep) {

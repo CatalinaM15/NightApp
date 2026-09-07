@@ -45,13 +45,19 @@ struct RoutineManagerView: View {
                 title: "Edit Routine",
                 initialTitle: routine.title,
                 initialIcon: routine.iconName,
-                initialScheduledWeekdaysMask: routine.scheduledWeekdaysMask
-            ) { title, icon, weekdays in
+                initialScheduledWeekdaysMask: routine.scheduledWeekdaysMask,
+                initialIsGrouped: routine.isGrouped,
+                initialSteps: routine.steps.sorted { $0.order < $1.order }.map {
+                    RoutineStepDraft(id: $0.id, title: $0.title)
+                },
+                allowsTypeSelection: false
+            ) { title, icon, weekdays, _, steps in
                 try RoutineStore.update(
                     routine,
                     title: title,
                     iconName: icon,
                     scheduledWeekdaysMask: weekdays,
+                    steps: steps,
                     in: modelContext
                 )
             }

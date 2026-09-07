@@ -28,7 +28,7 @@ struct SchemaMigrationTests {
             try oldContainer.mainContext.save()
         }
 
-        let newSchema = Schema(versionedSchema: NightLoopSchemaV2.self)
+        let newSchema = Schema(versionedSchema: NightLoopSchemaV3.self)
         let newConfiguration = ModelConfiguration("Migration", schema: newSchema, url: storeURL, cloudKitDatabase: .none)
         let migratedContainer = try ModelContainer(
             for: newSchema,
@@ -39,5 +39,7 @@ struct SchemaMigrationTests {
 
         #expect(routines.count == 1)
         #expect(routines.first?.scheduledWeekdaysMask == RoutineSchedule.allDaysMask)
+        #expect(routines.first?.isGrouped == false)
+        #expect(routines.first?.steps.isEmpty == true)
     }
 }

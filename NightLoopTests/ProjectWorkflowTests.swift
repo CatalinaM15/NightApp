@@ -107,4 +107,17 @@ struct ProjectWorkflowTests {
         #expect(project.steps.isEmpty)
         #expect(!project.isCompleted)
     }
+
+    @Test func completedProjectCanBePermanentlyDeletedWithItsSteps() throws {
+        let container = try ModelContainerFactory.makeContainer(inMemory: true)
+        let context = container.mainContext
+        let project = try ProjectStore.create(name: "Finished", colorTag: nil, in: context)
+        let step = try ProjectStore.addStep(to: project, title: "Ship", weekNumber: 1, in: context)
+        try ProjectCompletionStore.complete(step, in: context)
+
+        try ProjectStore.delete(project, in: context)
+
+        #expect(try context.fetch(FetchDescriptor<NightProject>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ProjectStep>()).isEmpty)
+    }
 }

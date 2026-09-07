@@ -9,67 +9,29 @@ struct RoutineListView: View {
     let date: Date
     @ObservedObject var undoCoordinator: CompletionUndoCoordinator
 
-    @State private var showsNewRoutine = false
-    @State private var showsRoutineManager = false
     @State private var errorMessage: String?
 
-    private var activeRoutines: [Routine] {
-        routines.filter { $0.isActive && $0.isScheduled(on: date) }
-    }
+    private var activeRoutines: [Routine] { routines.filter(\.isActive) }
     private var dayKey: String { CivilDay(date: date).key }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(activeRoutines.isEmpty ? "Create a small ritual for tonight." : "Complete each ritual once.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    showsRoutineManager = true
-                } label: {
-                    Label("Manage Routines", systemImage: "slider.horizontal.3")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(JournalIconButtonStyle())
-                .help("Manage routines")
-                Button {
-                    showsNewRoutine = true
-                } label: {
-                    Label("New Routine", systemImage: "plus")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(JournalIconButtonStyle())
-                .help("New routine")
-            }
-
-            if activeRoutines.isEmpty {
-                Button("Create Routine") { showsNewRoutine = true }
-            } else {
-                ForEach(activeRoutines) { routine in
-                    RoutineRowView(
-                        routine: routine,
-                        isCompleted: routine.completions.contains { $0.dayKey == dayKey },
-                        streak: RoutineStreakCalculator.currentStreak(for: routine, on: date),
-                        complete: { complete(routine) }
+        HStack(spacing: 6) {
+            ForEach(0..<7, id: \.self) { index in
+                if activeRoutines.indices.contains(index), activeRoutines[index].isScheduled(on: date) {
+                    RoutineTile(
+                        routine: activeRoutines[index],
+                        date: date,
+                        dayKey: dayKey,
+                        undoCoordinator: undoCoordinator,
+                        reportError: { errorMessage = $0 }
                     )
+                } else {
+                    EmptyRoutineSlot(position: index + 1)
                 }
             }
         }
-        .sheet(isPresented: $showsNewRoutine) {
-            RoutineEditorView(title: "New Routine") { title, icon, weekdays in
-                try RoutineStore.create(
-                    title: title,
-                    iconName: icon,
-                    scheduledWeekdaysMask: weekdays,
-                    on: date,
-                    in: modelContext
-                )
-            }
-        }
-        .sheet(isPresented: $showsRoutineManager) {
-            RoutineManagerView(date: date)
-        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Today's Cards strip")
         .alert("Routine Error", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -79,55 +41,177 @@ struct RoutineListView: View {
             Text(errorMessage ?? "The routine could not be updated.")
         }
     }
+}
 
-    private func complete(_ routine: Routine) {
-        do {
-            let completion = try RoutineCompletionStore.complete(routine, in: modelContext)
-            undoCoordinator.offer(message: "Completed \(routine.title)") {
-                do {
-                    try RoutineCompletionStore.undo(completion, in: modelContext)
-                } catch {
-                    errorMessage = error.localizedDescription
+private struct EmptyRoutineSlot: View {
+    let position: Int
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(JournalPalette.paperRule.opacity(0.12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(JournalPalette.paperRule.opacity(0.32), style: StrokeStyle(lineWidth: 0.7, dash: [3]))
+            }
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .accessibilityLabel("Empty ritual position \(position)")
+    }
+}
+
+private struct RoutineTile: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let routine: Routine
+    let date: Date
+    let dayKey: String
+    @ObservedObject var undoCoordinator: CompletionUndoCoordinator
+    let reportError: (String) -> Void
+
+    @State private var showsGroup = false
+
+    private var isParentCompleted: Bool {
+        routine.completions.contains { $0.dayKey == dayKey }
+    }
+
+    private var completionUnits: (completed: Int, total: Int) {
+        routine.isGrouped
+            ? (RoutineGroupCompletionStore.completedStepCount(for: routine, on: date), routine.steps.count)
+            : (isParentCompleted ? 1 : 0, 1)
+    }
+
+    private var progress: Double {
+        guard completionUnits.total > 0 else { return 0 }
+        return min(max(Double(completionUnits.completed) / Double(completionUnits.total), 0), 1)
+    }
+
+    var body: some View {
+        Button(action: activate) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(JournalPalette.card)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(JournalPalette.raised.opacity(progress))
+                VStack(spacing: 6) {
+                    Image(systemName: routine.iconName)
+                        .font(.body.weight(.medium))
+                    Text(routine.title)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.7)
+                }
+                .padding(.horizontal, 3)
+                .foregroundStyle(progress >= 0.55 ? JournalPalette.ink : JournalPalette.paperInk)
+            }
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .overlay(alignment: .topTrailing) {
+                if let streak = RoutineStreakCalculator.currentStreak(for: routine, on: date), streak > 0 {
+                    Label("\(streak)", systemImage: "flame.fill")
+                        .font(.system(size: 7, weight: .bold))
+                        .labelStyle(.titleAndIcon)
+                        .padding(3)
+                        .foregroundStyle(progress >= 0.55 ? JournalPalette.ink : JournalPalette.ember)
+                        .accessibilityLabel("\(streak) scheduled-day streak")
                 }
             }
-        } catch {
-            errorMessage = error.localizedDescription
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(routine.isGrouped || !isParentCompleted)
+        .accessibilityLabel(routine.title)
+        .accessibilityValue("\(Int((progress * 100).rounded())) percent complete")
+        .popover(isPresented: $showsGroup, arrowEdge: .bottom) {
+            GroupedRoutineChecklist(
+                routine: routine,
+                date: date,
+                undoCoordinator: undoCoordinator,
+                reportError: reportError
+            )
+        }
+    }
+
+    private func activate() {
+        if routine.isGrouped {
+            showsGroup = true
+        } else {
+            do {
+                let completion = try RoutineCompletionStore.complete(routine, at: date, in: modelContext)
+                undoCoordinator.offer(message: "Completed \(routine.title)") {
+                    do { try RoutineCompletionStore.undo(completion, in: modelContext) }
+                    catch { reportError(error.localizedDescription) }
+                }
+            } catch {
+                reportError(error.localizedDescription)
+            }
         }
     }
 }
 
-private struct RoutineRowView: View {
+private struct GroupedRoutineChecklist: View {
+    @Environment(\.modelContext) private var modelContext
+
     let routine: Routine
-    let isCompleted: Bool
-    let streak: Int?
-    let complete: () -> Void
+    let date: Date
+    @ObservedObject var undoCoordinator: CompletionUndoCoordinator
+    let reportError: (String) -> Void
+
+    private var orderedSteps: [NightRoutineStep] { routine.steps.sorted { $0.order < $1.order } }
+    private var completedCount: Int { RoutineGroupCompletionStore.completedStepCount(for: routine, on: date) }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: complete) {
-                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isCompleted ? Color(red: 0.24, green: 0.42, blue: 0.25) : JournalPalette.paperSecondaryInk)
-            }
-            .buttonStyle(.plain)
-            .disabled(isCompleted)
-            .accessibilityLabel(isCompleted ? "\(routine.title), completed" : "Complete \(routine.title)")
-            .frame(minWidth: 28, minHeight: 28)
-
-            Image(systemName: routine.iconName)
-                .frame(width: 18)
+        VStack(alignment: .leading, spacing: 14) {
+            Label(routine.title, systemImage: routine.iconName)
+                .font(.headline)
+            Text("\(completedCount) of \(orderedSteps.count) complete")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(routine.title)
-                .strikethrough(isCompleted)
-                .foregroundStyle(isCompleted ? .secondary : .primary)
-            Spacer()
-            if let streak, streak > 0 {
-                Label("\(streak)", systemImage: "flame.fill")
-                    .font(.caption)
-                    .foregroundStyle(JournalPalette.ember)
-                    .accessibilityLabel("\(streak) day streak")
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(orderedSteps) { step in
+                        let completed = RoutineGroupCompletionStore.isComplete(step, on: date)
+                        Button { complete(step) } label: {
+                            HStack(spacing: 9) {
+                                Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                                Text(step.title)
+                                    .strikethrough(completed)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(completed)
+                        .accessibilityLabel(completed ? "\(step.title), completed" : "Complete \(step.title)")
+                    }
+                }
             }
+            .frame(maxHeight: 260)
+
+            Button("Complete group", systemImage: "checkmark.seal.fill") { completeGroup() }
+                .buttonStyle(.borderedProminent)
+                .disabled(completedCount == orderedSteps.count)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .frame(width: 300)
+    }
+
+    private func complete(_ step: NightRoutineStep) {
+        do {
+            let change = try RoutineGroupCompletionStore.complete(step, in: routine, at: date, in: modelContext)
+            undoCoordinator.offer(message: "Completed \(step.title)") {
+                do { try RoutineGroupCompletionStore.undo(change, in: modelContext) }
+                catch { reportError(error.localizedDescription) }
+            }
+        } catch { reportError(error.localizedDescription) }
+    }
+
+    private func completeGroup() {
+        do {
+            let change = try RoutineGroupCompletionStore.completeGroup(routine, at: date, in: modelContext)
+            undoCoordinator.offer(message: "Completed \(routine.title)") {
+                do { try RoutineGroupCompletionStore.undo(change, in: modelContext) }
+                catch { reportError(error.localizedDescription) }
+            }
+        } catch { reportError(error.localizedDescription) }
     }
 }
