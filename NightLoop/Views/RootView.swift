@@ -1,8 +1,6 @@
-import SwiftData
 import SwiftUI
 
 struct RootView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openSettings) private var openSettings
     @AppStorage("floatsAboveOtherWindows") private var floatsAboveOtherWindows = true
@@ -12,11 +10,8 @@ struct RootView: View {
     @AppStorage("nightlyReminderMinute") private var reminderMinute = 0
     @StateObject private var dayCoordinator = JournalDayCoordinator()
     @StateObject private var undoCoordinator = CompletionUndoCoordinator()
-    @State private var showsRoutineManager = false
-    @State private var showsNewRoutine = false
-    @Query private var routines: [Routine]
-
-    private var activeRoutineCount: Int { routines.filter(\.isActive).count }
+    @State private var planningTomorrow = false
+    @State private var showsExperimentHistory = false
 
     var body: some View {
         ScrollView {
@@ -32,28 +27,27 @@ struct RootView: View {
                 JournalSection(title: "Today's Cards", systemImage: "sparkles") {
                     RoutineListView(
                         date: dayCoordinator.visibleDate,
+                        planningTomorrow: $planningTomorrow,
                         undoCoordinator: undoCoordinator
                     )
                 } accessory: {
                     HStack(spacing: 6) {
-                        Button {
-                            showsRoutineManager = true
-                        } label: {
-                            Label("Manage Routines", systemImage: "slider.horizontal.3")
+                        Picker("Planning Day", selection: $planningTomorrow) {
+                            Text("Today").tag(false)
+                            Text("Tomorrow").tag(true)
                         }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(JournalIconButtonStyle())
-                        .help("Manage routines")
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 150)
 
                         Button {
-                            showsNewRoutine = true
+                            showsExperimentHistory = true
                         } label: {
-                            Label("New Routine", systemImage: "plus")
+                            Label("Experiment History", systemImage: "archivebox")
                         }
                         .labelStyle(.iconOnly)
                         .buttonStyle(JournalIconButtonStyle())
-                        .help(activeRoutineCount >= 7 ? "Seven active routines is the maximum" : "New routine")
-                        .disabled(activeRoutineCount >= 7)
+                        .help("Experiment history")
                     }
                 }
                 JournalSection(title: "Projects", systemImage: "checklist") {
@@ -78,21 +72,8 @@ struct RootView: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: undoCoordinator.message)
         .tint(JournalPalette.ember)
-        .sheet(isPresented: $showsRoutineManager) {
-            RoutineManagerView(date: dayCoordinator.visibleDate)
-        }
-        .sheet(isPresented: $showsNewRoutine) {
-            RoutineEditorView(title: "New Routine") { title, icon, weekdays, isGrouped, steps in
-                try RoutineStore.create(
-                    title: title,
-                    iconName: icon,
-                    scheduledWeekdaysMask: weekdays,
-                    isGrouped: isGrouped,
-                    steps: steps,
-                    on: dayCoordinator.visibleDate,
-                    in: modelContext
-                )
-            }
+        .sheet(isPresented: $showsExperimentHistory) {
+            ExperimentHistoryView()
         }
         .task(id: reminderSyncID) {
             await NightlyReminderScheduler.shared.synchronize(

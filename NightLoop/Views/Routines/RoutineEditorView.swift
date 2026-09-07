@@ -7,6 +7,8 @@ struct RoutineEditorView: View {
     let initialTitle: String
     let initialIcon: String
     let allowsTypeSelection: Bool
+    let allowsTitleEditing: Bool
+    let showsSchedule: Bool
     let save: (String, String, Int, Bool, [RoutineStepDraft]) throws -> Void
 
     @State private var routineTitle: String
@@ -26,12 +28,16 @@ struct RoutineEditorView: View {
         initialIsGrouped: Bool = false,
         initialSteps: [RoutineStepDraft] = [],
         allowsTypeSelection: Bool = true,
+        allowsTitleEditing: Bool = true,
+        showsSchedule: Bool = true,
         save: @escaping (String, String, Int, Bool, [RoutineStepDraft]) throws -> Void
     ) {
         self.title = title
         self.initialTitle = initialTitle
         self.initialIcon = initialIcon
         self.allowsTypeSelection = allowsTypeSelection
+        self.allowsTitleEditing = allowsTitleEditing
+        self.showsSchedule = showsSchedule
         self.save = save
         _routineTitle = State(initialValue: initialTitle)
         _iconName = State(initialValue: initialIcon)
@@ -44,8 +50,12 @@ struct RoutineEditorView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(title)
                 .font(.title2.weight(.semibold))
-            TextField("Routine name", text: $routineTitle)
-                .textFieldStyle(.roundedBorder)
+            if allowsTitleEditing {
+                TextField("Routine name", text: $routineTitle)
+                    .textFieldStyle(.roundedBorder)
+            } else {
+                Text(routineTitle).font(.headline)
+            }
 
             if allowsTypeSelection {
                 Toggle("Grouped routine", isOn: $isGrouped)
@@ -79,7 +89,8 @@ struct RoutineEditorView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            if showsSchedule {
+              VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Days")
                         .font(.headline)
@@ -99,6 +110,7 @@ struct RoutineEditorView: View {
                 Text(scheduleSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+              }
             }
 
             if isGrouped {

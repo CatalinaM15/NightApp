@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-extension NightLoopSchemaV3 {
+extension NightLoopSchemaV4 {
 @Model final class ProjectStep {
     @Attribute(.unique) var id: UUID
     var title: String
@@ -30,4 +30,4 @@ extension NightLoopSchemaV3 {
 }
 }
 
-typealias ProjectStep = NightLoopSchemaV3.ProjectStep
+typealias ProjectStep = NightLoopSchemaV4.ProjectStep

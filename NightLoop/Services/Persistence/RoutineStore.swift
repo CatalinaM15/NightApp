@@ -31,6 +31,7 @@ struct RoutineStepDraft: Identifiable, Equatable {
 
 @MainActor
 enum RoutineStore {
+    @discardableResult
     static func create(
         title: String,
         iconName: String,
@@ -40,7 +41,7 @@ enum RoutineStore {
         on date: Date = .now,
         calendar: Calendar = .autoupdatingCurrent,
         in context: ModelContext
-    ) throws {
+    ) throws -> Routine {
         let normalizedTitle = try validatedTitle(title, excluding: nil, in: context)
         let routines = try context.fetch(FetchDescriptor<Routine>())
         guard routines.filter(\.isActive).count < 7 else { throw RoutineStoreError.activeRoutineLimit }
@@ -59,6 +60,7 @@ enum RoutineStore {
             context.insert(NightRoutineStep(id: draft.id, title: draft.title, order: index, routine: routine))
         }
         try context.save()
+        return routine
     }
 
     static func update(
