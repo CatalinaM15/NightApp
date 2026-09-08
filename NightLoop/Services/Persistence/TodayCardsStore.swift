@@ -131,6 +131,15 @@ enum TodayCardsStore {
         try context.save()
     }
 
+    static func toggleCompletion(
+        _ selection: SlotSelectionHistory,
+        at date: Date = .now,
+        in context: ModelContext
+    ) throws {
+        selection.completedAt = selection.completedAt == nil ? date : nil
+        try context.save()
+    }
+
     static func daysSinceLastPicked(
         option: CardOption,
         before date: Date,
@@ -162,14 +171,23 @@ enum TodayCardsStore {
         try context.save()
     }
 
-    static func addHobbyOption(named name: String, allOptions: [CardOption], in context: ModelContext) throws {
+    static func addOption(
+        named name: String,
+        category: RotatingCardCategory,
+        allOptions: [CardOption],
+        in context: ModelContext
+    ) throws {
         let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { throw TodayCardsStoreError.optionNameRequired }
-        let hobbies = options(for: .hobby, in: allOptions)
-        guard !hobbies.contains(where: { $0.name.compare(normalized, options: .caseInsensitive) == .orderedSame }) else {
+        let categoryOptions = options(for: category, in: allOptions)
+        guard !categoryOptions.contains(where: { $0.name.compare(normalized, options: .caseInsensitive) == .orderedSame }) else {
             throw TodayCardsStoreError.duplicateOption
         }
-        context.insert(CardOption(category: .hobby, name: normalized, sortOrder: (hobbies.map(\.sortOrder).max() ?? -1) + 1))
+        context.insert(CardOption(
+            category: category,
+            name: normalized,
+            sortOrder: (categoryOptions.map(\.sortOrder).max() ?? -1) + 1
+        ))
         try context.save()
     }
 
@@ -188,6 +206,36 @@ enum TodayCardsStore {
         let oldName = option.name
         option.name = normalized
         history.filter { $0.category == option.category && $0.optionName == oldName }.forEach { $0.optionName = normalized }
+        try context.save()
+    }
+
+    static func updateOption(
+        _ option: CardOption,
+        name: String,
+        scheduledWeekdaysMask: Int,
+        allOptions: [CardOption],
+        history: [SlotSelectionHistory],
+        in context: ModelContext
+    ) throws {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { throw TodayCardsStoreError.optionNameRequired }
+        guard !allOptions.contains(where: {
+            $0.category == option.category && $0.id != option.id &&
+            $0.name.compare(normalized, options: .caseInsensitive) == .orderedSame
+        }) else { throw TodayCardsStoreError.duplicateOption }
+
+        for weekday in RoutineWeekday.allCases where RoutineSchedule.contains(weekday, in: scheduledWeekdaysMask) {
+            for other in allOptions where other.category == option.category && other.id != option.id {
+                other.scheduledWeekdaysMask &= ~weekday.bit
+            }
+        }
+
+        let oldName = option.name
+        option.name = normalized
+        option.scheduledWeekdaysMask = scheduledWeekdaysMask
+        history.filter { $0.category == option.category && $0.optionName == oldName }.forEach {
+            $0.optionName = normalized
+        }
         try context.save()
     }
 

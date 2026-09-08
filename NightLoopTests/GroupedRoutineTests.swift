@@ -96,6 +96,23 @@ struct GroupedRoutineTests {
         #expect(!RoutineGroupCompletionStore.isComplete(steps[1], on: date))
     }
 
+    @Test func completedStepAndGroupCanBeUncompletedDirectly() throws {
+        let (container, routine, steps) = try makeGroupedRoutine()
+        let context = container.mainContext
+        let date = Date(timeIntervalSince1970: 1_789_000_000)
+        _ = try RoutineGroupCompletionStore.completeGroup(routine, at: date, in: context)
+
+        try RoutineGroupCompletionStore.uncomplete(steps[0], in: routine, at: date, in: context)
+        #expect(!RoutineGroupCompletionStore.isComplete(steps[0], on: date))
+        #expect(RoutineGroupCompletionStore.isComplete(steps[1], on: date))
+        #expect(try RoutineCompletionStore.completion(for: routine, dayKey: CivilDay(date: date).key, in: context) == nil)
+
+        _ = try RoutineGroupCompletionStore.complete(steps[0], in: routine, at: date, in: context)
+        try RoutineGroupCompletionStore.uncompleteGroup(routine, at: date, in: context)
+        #expect(RoutineGroupCompletionStore.completedStepCount(for: routine, on: date) == 0)
+        #expect(try RoutineCompletionStore.completion(for: routine, dayKey: CivilDay(date: date).key, in: context) == nil)
+    }
+
     @Test func stepCompletionsResetOnTheNextCivilDay() throws {
         let (container, routine, steps) = try makeGroupedRoutine()
         let context = container.mainContext

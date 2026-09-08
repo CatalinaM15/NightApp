@@ -77,6 +77,49 @@ enum RoutineGroupCompletionStore {
         try context.save()
     }
 
+    static func uncomplete(
+        _ step: NightRoutineStep,
+        in routine: Routine,
+        at date: Date = .now,
+        calendar: Calendar = .autoupdatingCurrent,
+        in context: ModelContext
+    ) throws {
+        let day = calendar.startOfDay(for: date)
+        step.completions
+            .filter { calendar.isDate($0.date, inSameDayAs: day) }
+            .forEach(context.delete)
+        if let parent = try RoutineCompletionStore.completion(
+            for: routine,
+            dayKey: CivilDay(date: date, calendar: calendar).key,
+            in: context
+        ) {
+            context.delete(parent)
+        }
+        try context.save()
+    }
+
+    static func uncompleteGroup(
+        _ routine: Routine,
+        at date: Date = .now,
+        calendar: Calendar = .autoupdatingCurrent,
+        in context: ModelContext
+    ) throws {
+        let day = calendar.startOfDay(for: date)
+        for step in routine.steps {
+            step.completions
+                .filter { calendar.isDate($0.date, inSameDayAs: day) }
+                .forEach(context.delete)
+        }
+        if let parent = try RoutineCompletionStore.completion(
+            for: routine,
+            dayKey: CivilDay(date: date, calendar: calendar).key,
+            in: context
+        ) {
+            context.delete(parent)
+        }
+        try context.save()
+    }
+
     private static func makeParentCompletionIfNeeded(
         for routine: Routine,
         at date: Date,

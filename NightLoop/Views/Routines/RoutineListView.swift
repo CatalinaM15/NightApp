@@ -8,7 +8,6 @@ struct RoutineListView: View {
     @Query(sort: \SlotSelectionHistory.date, order: .reverse) private var history: [SlotSelectionHistory]
     let date: Date
     @Binding var planningTomorrow: Bool
-    @ObservedObject var undoCoordinator: CompletionUndoCoordinator
     @State private var selectedCategory: RotatingCardCategory?
     @State private var errorMessage: String?
 
@@ -30,9 +29,9 @@ struct RoutineListView: View {
                     complete: { complete($0) }
                 )
             }
-            GroupedCardTile(slot: 4, fallbackTitle: "Daily Care", routine: TodayCardsStore.routine(forSlot: 4, in: routines), date: date, undoCoordinator: undoCoordinator, reportError: report)
+            GroupedCardTile(slot: 4, fallbackTitle: "Daily Care", routine: TodayCardsStore.routine(forSlot: 4, in: routines), date: date, reportError: report)
             ForEach(5...7, id: \.self) { slot in
-                GroupedCardTile(slot: slot, fallbackTitle: "Experiment \(slot - 4)", routine: TodayCardsStore.routine(forSlot: slot, in: routines), date: date, undoCoordinator: undoCoordinator, reportError: report)
+                GroupedCardTile(slot: slot, fallbackTitle: "Experiment \(slot - 4)", routine: TodayCardsStore.routine(forSlot: slot, in: routines), date: date, reportError: report)
             }
         }
         .accessibilityElement(children: .contain)
@@ -61,11 +60,7 @@ struct RoutineListView: View {
     }
     private func complete(_ selection: SlotSelectionHistory) {
         perform {
-            try TodayCardsStore.complete(selection, in: modelContext)
-            undoCoordinator.offer(message: "Completed \(selection.optionName)") {
-                do { try TodayCardsStore.undoCompletion(selection, in: modelContext) }
-                catch { report(error.localizedDescription) }
-            }
+            try TodayCardsStore.toggleCompletion(selection, in: modelContext)
         }
     }
     private func report(_ message: String) { errorMessage = message }
@@ -78,23 +73,37 @@ private struct RotatingCardTile: View {
     let canComplete: Bool
     let choose: () -> Void
     let complete: (SlotSelectionHistory) -> Void
-    @State private var handledLongPress = false
 
     var body: some View {
-        Button {
-            if handledLongPress { handledLongPress = false; return }
-            guard let selection, canComplete else { choose(); return }
-            if selection.completedAt == nil { complete(selection) }
-        } label: {
-            CardTileSurface(title: selection?.optionName ?? "Set up", iconName: category.iconName, progress: selection?.completedAt == nil ? 0 : 1)
+        CardTileSurface(
+            title: selection?.optionName ?? "Set up",
+            iconName: category.iconName,
+            progress: selection?.completedAt == nil ? 0 : 1
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .gesture(
+            LongPressGesture(minimumDuration: 0.45)
+                .exclusively(before: TapGesture())
+                .onEnded { gesture in
+                    switch gesture {
+                    case .first:
+                        choose()
+                    case .second:
+                        activate()
+                    }
+                }
+        )
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            activate()
         }
-        .buttonStyle(.plain)
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-            handledLongPress = true
-            choose()
-        })
         .help(selection == nil ? "Choose \(category.title)" : "Tap to complete; hold to change")
         .accessibilityLabel("\(category.title), \(selection?.optionName ?? "not selected")")
+    }
+
+    private func activate() {
+        guard let selection, canComplete else { choose(); return }
+        complete(selection)
     }
 }
 
@@ -104,7 +113,6 @@ private struct GroupedCardTile: View {
     let fallbackTitle: String
     let routine: Routine?
     let date: Date
-    @ObservedObject var undoCoordinator: CompletionUndoCoordinator
     let reportError: (String) -> Void
     @State private var showsChecklist = false
     @State private var showsEditor = false
@@ -117,7 +125,13 @@ private struct GroupedCardTile: View {
 
     var body: some View {
         Button {
-            if routine == nil { showsEditor = true } else { showsChecklist = true }
+            guard let routine else { showsEditor = true; return }
+            if progress >= 1 {
+                do { try RoutineGroupCompletionStore.uncompleteGroup(routine, at: date, in: modelContext) }
+                catch { reportError(error.localizedDescription) }
+            } else {
+                showsChecklist = true
+            }
         } label: {
             CardTileSurface(title: routine?.title ?? fallbackTitle, iconName: routine?.iconName ?? "plus", progress: progress, isEmpty: routine == nil)
         }
@@ -125,7 +139,7 @@ private struct GroupedCardTile: View {
         .popover(isPresented: $showsChecklist, arrowEdge: .bottom) {
             if let routine {
                 GroupedRoutineChecklist(
-                    routine: routine, date: date, undoCoordinator: undoCoordinator,
+                    routine: routine, date: date,
                     edit: { showsChecklist = false; showsEditor = true },
                     archive: slot > 4 ? { showsChecklist = false; confirmsArchive = true } : nil,
                     reportError: reportError
@@ -198,9 +212,8 @@ private struct RotatingCardPicker: View {
     let options: [CardOption]
     let history: [SlotSelectionHistory]
     let choose: (CardOption) -> Void
-    @State private var newHobbyName = ""
+    @State private var newOptionName = ""
     @State private var editingOption: CardOption?
-    @State private var editedName = ""
     @State private var errorMessage: String?
     private var categoryOptions: [CardOption] { TodayCardsStore.options(for: category, in: options) }
 
@@ -211,62 +224,137 @@ private struct RotatingCardPicker: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(categoryOptions) { option in
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Button(option.name) { choose(option) }.buttonStyle(.plain)
-                                Spacer()
-                                Text(lastPickedText(for: option)).font(.caption2).foregroundStyle(.secondary)
-                                if category == .hobby {
-                                    Button("Rename", systemImage: "pencil") { editingOption = option; editedName = option.name }
-                                        .labelStyle(.iconOnly).buttonStyle(.borderless)
-                                }
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.name)
+                                Text("\(lastPickedText(for: option))  •  \(scheduleText(for: option))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
-                            HStack(spacing: 4) {
-                                ForEach(RoutineWeekday.allCases) { weekday in
-                                    let selected = RoutineSchedule.contains(weekday, in: option.scheduledWeekdaysMask)
-                                    Button(weekday.shortName) {
-                                        perform { try TodayCardsStore.setDefault(option: option, weekday: weekday, selected: !selected, allOptions: options, in: modelContext) }
-                                    }
-                                    .font(.system(size: 8, weight: .semibold)).buttonStyle(.bordered)
-                                    .tint(selected ? JournalPalette.raised : Color.clear)
-                                }
-                            }
+                            Spacer()
+                            Button("Choose") { choose(option) }
+                                .buttonStyle(.borderless)
+                            Button("Edit", systemImage: "pencil") { editingOption = option }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.borderless)
+                                .help("Edit name and default days")
                         }
+                        .padding(.vertical, 3)
                     }
                 }
             }.frame(maxHeight: 310)
-            if category == .hobby {
-                HStack {
-                    TextField("New hobby", text: $newHobbyName)
-                    Button("Add") {
-                        perform { try TodayCardsStore.addHobbyOption(named: newHobbyName, allOptions: options, in: modelContext); newHobbyName = "" }
-                    }.disabled(newHobbyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            HStack {
+                TextField("New \(category.title.lowercased()) option", text: $newOptionName)
+                Button("Add") {
+                    perform {
+                        try TodayCardsStore.addOption(
+                            named: newOptionName,
+                            category: category,
+                            allOptions: options,
+                            in: modelContext
+                        )
+                        newOptionName = ""
+                    }
                 }
+                .disabled(newOptionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
         }
         .padding(16).frame(width: 390)
-        .alert("Rename Hobby", isPresented: Binding(get: { editingOption != nil }, set: { if !$0 { editingOption = nil } })) {
-            TextField("Hobby name", text: $editedName)
-            Button("Save") {
-                guard let editingOption else { return }
-                perform { try TodayCardsStore.renameHobbyOption(editingOption, to: editedName, allOptions: options, history: history, in: modelContext); self.editingOption = nil }
-            }
-            Button("Cancel", role: .cancel) { editingOption = nil }
+        .sheet(item: $editingOption) { option in
+            CardOptionEditor(option: option, allOptions: options, history: history)
         }
     }
     private func lastPickedText(for option: CardOption) -> String {
         guard let days = TodayCardsStore.daysSinceLastPicked(option: option, before: date, history: history) else { return "Never picked" }
         return days == 1 ? "1 day ago" : "\(days) days ago"
     }
+    private func scheduleText(for option: CardOption) -> String {
+        let days = RoutineWeekday.allCases.filter {
+            RoutineSchedule.contains($0, in: option.scheduledWeekdaysMask)
+        }
+        return days.isEmpty ? "No default days" : days.map(\.shortName).joined(separator: ", ")
+    }
     private func perform(_ action: () throws -> Void) { do { try action() } catch { errorMessage = error.localizedDescription } }
+}
+
+private struct CardOptionEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    let option: CardOption
+    let allOptions: [CardOption]
+    let history: [SlotSelectionHistory]
+    @State private var name: String
+    @State private var weekdaysMask: Int
+    @State private var errorMessage: String?
+
+    init(option: CardOption, allOptions: [CardOption], history: [SlotSelectionHistory]) {
+        self.option = option
+        self.allOptions = allOptions
+        self.history = history
+        _name = State(initialValue: option.name)
+        _weekdaysMask = State(initialValue: option.scheduledWeekdaysMask)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Edit Card Option").font(.title2.weight(.semibold))
+            TextField("Option name", text: $name).textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Default Days").font(.headline)
+                Text("Days may remain unassigned. Assigning a day here removes it from another option in this card.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    ForEach(RoutineWeekday.allCases) { weekday in
+                        let selected = RoutineSchedule.contains(weekday, in: weekdaysMask)
+                        Button {
+                            weekdaysMask = RoutineSchedule.toggling(weekday, in: weekdaysMask)
+                        } label: {
+                            Text(weekday.shortName)
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 28)
+                                .background(selected ? JournalPalette.raised : Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+                                .foregroundStyle(selected ? JournalPalette.ink : Color.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 470)
+    }
+
+    private func save() {
+        do {
+            try TodayCardsStore.updateOption(
+                option,
+                name: name,
+                scheduledWeekdaysMask: weekdaysMask,
+                allOptions: allOptions,
+                history: history,
+                in: modelContext
+            )
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
 
 private struct GroupedRoutineChecklist: View {
     @Environment(\.modelContext) private var modelContext
     let routine: Routine
     let date: Date
-    @ObservedObject var undoCoordinator: CompletionUndoCoordinator
     let edit: () -> Void
     let archive: (() -> Void)?
     let reportError: (String) -> Void
@@ -278,20 +366,32 @@ private struct GroupedRoutineChecklist: View {
             HStack {
                 Label(routine.title, systemImage: routine.iconName).font(.headline)
                 Spacer()
-                Button("Edit", systemImage: "pencil", action: edit).labelStyle(.iconOnly)
-                if let archive { Button("Archive", systemImage: "archivebox", action: archive).labelStyle(.iconOnly) }
+                Button("Edit", systemImage: "pencil", action: edit)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(JournalPalette.raised)
+                    .frame(minWidth: 28, minHeight: 28)
+                    .help("Edit card")
+                if let archive {
+                    Button("Archive", systemImage: "archivebox", action: archive)
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(JournalPalette.raised)
+                        .frame(minWidth: 28, minHeight: 28)
+                        .help("Archive experiment")
+                }
             }
             Text("\(completedCount) of \(orderedSteps.count) complete").font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(orderedSteps) { step in
                         let completed = RoutineGroupCompletionStore.isComplete(step, on: date)
-                        Button { complete(step) } label: {
+                        Button { toggle(step) } label: {
                             HStack(spacing: 9) {
                                 Image(systemName: completed ? "checkmark.circle.fill" : "circle")
                                 Text(step.title).strikethrough(completed).frame(maxWidth: .infinity, alignment: .leading)
                             }.contentShape(Rectangle())
-                        }.buttonStyle(.plain).disabled(completed)
+                        }.buttonStyle(.plain)
                     }
                 }
             }.frame(maxHeight: 260)
@@ -299,20 +399,18 @@ private struct GroupedRoutineChecklist: View {
                 .buttonStyle(.borderedProminent).disabled(completedCount == orderedSteps.count).frame(maxWidth: .infinity, alignment: .trailing)
         }.padding(16).frame(width: 320)
     }
-    private func complete(_ step: NightRoutineStep) {
+    private func toggle(_ step: NightRoutineStep) {
         do {
-            let change = try RoutineGroupCompletionStore.complete(step, in: routine, at: date, in: modelContext)
-            undoCoordinator.offer(message: "Completed \(step.title)") {
-                do { try RoutineGroupCompletionStore.undo(change, in: modelContext) } catch { reportError(error.localizedDescription) }
+            if RoutineGroupCompletionStore.isComplete(step, on: date) {
+                try RoutineGroupCompletionStore.uncomplete(step, in: routine, at: date, in: modelContext)
+            } else {
+                _ = try RoutineGroupCompletionStore.complete(step, in: routine, at: date, in: modelContext)
             }
         } catch { reportError(error.localizedDescription) }
     }
     private func completeGroup() {
         do {
-            let change = try RoutineGroupCompletionStore.completeGroup(routine, at: date, in: modelContext)
-            undoCoordinator.offer(message: "Completed \(routine.title)") {
-                do { try RoutineGroupCompletionStore.undo(change, in: modelContext) } catch { reportError(error.localizedDescription) }
-            }
+            _ = try RoutineGroupCompletionStore.completeGroup(routine, at: date, in: modelContext)
         } catch { reportError(error.localizedDescription) }
     }
 }

@@ -27,8 +27,7 @@ struct RootView: View {
                 JournalSection(title: "Today's Cards", systemImage: "sparkles") {
                     RoutineListView(
                         date: dayCoordinator.visibleDate,
-                        planningTomorrow: $planningTomorrow,
-                        undoCoordinator: undoCoordinator
+                        planningTomorrow: $planningTomorrow
                     )
                 } accessory: {
                     HStack(spacing: 6) {
@@ -71,7 +70,7 @@ struct RootView: View {
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: undoCoordinator.message)
-        .tint(JournalPalette.ember)
+        .tint(JournalPalette.raised)
         .sheet(isPresented: $showsExperimentHistory) {
             ExperimentHistoryView()
         }

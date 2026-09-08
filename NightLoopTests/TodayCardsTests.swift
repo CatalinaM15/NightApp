@@ -73,6 +73,45 @@ struct TodayCardsTests {
         #expect(RoutineSchedule.contains(.monday, in: gym.scheduledWeekdaysMask))
     }
 
+    @Test func editingAnyOptionUpdatesItsNameAndDefaultDays() throws {
+        let (container, monday) = try configuredContainer()
+        let context = container.mainContext
+        let options = try context.fetch(FetchDescriptor<CardOption>())
+        let run = try #require(options.first { $0.name == "Run" })
+        let selection = try TodayCardsStore.choose(run, category: .exercise, on: monday, history: [], in: context)
+
+        try TodayCardsStore.updateOption(
+            run,
+            name: "Morning Run",
+            scheduledWeekdaysMask: RoutineWeekday.monday.bit | RoutineWeekday.friday.bit,
+            allOptions: options,
+            history: [selection],
+            in: context
+        )
+
+        #expect(run.name == "Morning Run")
+        #expect(RoutineSchedule.contains(.monday, in: run.scheduledWeekdaysMask))
+        #expect(RoutineSchedule.contains(.friday, in: run.scheduledWeekdaysMask))
+        #expect(selection.optionName == "Morning Run")
+    }
+
+    @Test func customOptionsCanBeAddedToEveryRotatingCategory() throws {
+        let (container, _) = try configuredContainer()
+        let context = container.mainContext
+        var options = try context.fetch(FetchDescriptor<CardOption>())
+
+        try TodayCardsStore.addOption(named: "Face Mask", category: .bodyCare, allOptions: options, in: context)
+        options = try context.fetch(FetchDescriptor<CardOption>())
+        try TodayCardsStore.addOption(named: "Swim", category: .exercise, allOptions: options, in: context)
+        options = try context.fetch(FetchDescriptor<CardOption>())
+        try TodayCardsStore.addOption(named: "Music", category: .hobby, allOptions: options, in: context)
+
+        let namesByCategory = Dictionary(grouping: try context.fetch(FetchDescriptor<CardOption>()), by: \.category)
+        #expect(namesByCategory[RotatingCardCategory.bodyCare.rawValue]?.contains { $0.name == "Face Mask" } == true)
+        #expect(namesByCategory[RotatingCardCategory.exercise.rawValue]?.contains { $0.name == "Swim" } == true)
+        #expect(namesByCategory[RotatingCardCategory.hobby.rawValue]?.contains { $0.name == "Music" } == true)
+    }
+
     @Test func datedOverrideDoesNotChangeWeekdayDefaultsAndStartsIncomplete() throws {
         let (container, monday) = try configuredContainer()
         let context = container.mainContext
@@ -88,6 +127,18 @@ struct TodayCardsTests {
         #expect(override.optionName == "Gym")
         #expect(override.completedAt == nil)
         #expect(RoutineSchedule.contains(.monday, in: run.scheduledWeekdaysMask))
+    }
+
+    @Test func rotatingCompletionTogglesWithoutAnUndoWindow() throws {
+        let (container, monday) = try configuredContainer()
+        let context = container.mainContext
+        let run = try #require(try context.fetch(FetchDescriptor<CardOption>()).first { $0.name == "Run" })
+        let selection = try TodayCardsStore.choose(run, category: .exercise, on: monday, history: [], in: context)
+
+        try TodayCardsStore.toggleCompletion(selection, at: monday, in: context)
+        #expect(selection.completedAt != nil)
+        try TodayCardsStore.toggleCompletion(selection, at: monday, in: context)
+        #expect(selection.completedAt == nil)
     }
 
     @Test func archiveCountsDistinctDaysWithAtLeastOneStepCompletion() throws {
