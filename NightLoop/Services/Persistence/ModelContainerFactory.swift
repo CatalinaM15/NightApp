@@ -3,7 +3,7 @@ import SwiftData
 @MainActor
 enum ModelContainerFactory {
     static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: NightLoopSchemaV4.self)
+        let schema = Schema(versionedSchema: NightLoopSchemaV5.self)
         let configuration = ModelConfiguration(
             "NightLoopLocal",
             schema: schema,
@@ -17,6 +17,7 @@ enum ModelContainerFactory {
             configurations: configuration
         )
         try PersistenceMaintenance.removeOrphans(in: container.mainContext)
+        try DailyNoteStore.pruneNotes(before: .now, in: container.mainContext)
         if !inMemory {
             try TodayCardsStore.bootstrap(in: container.mainContext)
         }

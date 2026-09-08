@@ -19,7 +19,7 @@ final class TomorrowEventsViewModel: ObservableObject {
         self.permissionState = permissionManager.state
     }
 
-    func refresh(relativeTo date: Date) async {
+    func refresh(for date: Date) async {
         permissionState = permissionManager.state
         guard permissionState == .fullAccess else {
             events = []
@@ -30,7 +30,7 @@ final class TomorrowEventsViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            events = try syncService.fetchTomorrowEvents(relativeTo: date)
+            events = try syncService.fetchEvents(on: date)
             errorMessage = nil
         } catch {
             events = []
@@ -38,13 +38,13 @@ final class TomorrowEventsViewModel: ObservableObject {
         }
     }
 
-    func requestAccess(relativeTo date: Date) async {
+    func requestAccess(for date: Date) async {
         isLoading = true
         defer { isLoading = false }
         do {
             _ = try await permissionManager.requestFullAccess()
             permissionState = permissionManager.state
-            await refresh(relativeTo: date)
+            await refresh(for: date)
         } catch {
             permissionState = permissionManager.state
             errorMessage = error.localizedDescription

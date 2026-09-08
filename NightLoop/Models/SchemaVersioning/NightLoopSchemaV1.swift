@@ -221,15 +221,27 @@ enum NightLoopSchemaV4: VersionedSchema {
     }
 }
 
+enum NightLoopSchemaV5: VersionedSchema {
+    static var versionIdentifier = Schema.Version(5, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        [NightLoopSchemaV4.Routine.self, NightLoopSchemaV4.RoutineCompletion.self,
+         NightLoopSchemaV4.NightProject.self, NightLoopSchemaV4.ProjectStep.self,
+         NightLoopSchemaV4.NightRoutineStep.self, NightLoopSchemaV4.NightRoutineStepCompletion.self,
+         NightLoopSchemaV4.CardOption.self, NightLoopSchemaV4.SlotSelectionHistory.self,
+         NightLoopSchemaV4.ExperimentArchiveRecord.self, DailyNote.self]
+    }
+}
+
 enum NightLoopMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [NightLoopSchemaV1.self, NightLoopSchemaV2.self, NightLoopSchemaV3.self, NightLoopSchemaV4.self]
+        [NightLoopSchemaV1.self, NightLoopSchemaV2.self, NightLoopSchemaV3.self, NightLoopSchemaV4.self, NightLoopSchemaV5.self]
     }
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: NightLoopSchemaV1.self, toVersion: NightLoopSchemaV2.self),
             .lightweight(fromVersion: NightLoopSchemaV2.self, toVersion: NightLoopSchemaV3.self),
-            .lightweight(fromVersion: NightLoopSchemaV3.self, toVersion: NightLoopSchemaV4.self)
+            .lightweight(fromVersion: NightLoopSchemaV3.self, toVersion: NightLoopSchemaV4.self),
+            .lightweight(fromVersion: NightLoopSchemaV4.self, toVersion: NightLoopSchemaV5.self)
         ]
     }
 }

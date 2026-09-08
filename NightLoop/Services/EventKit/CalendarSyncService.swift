@@ -4,12 +4,12 @@ import Foundation
 
 enum CalendarSyncError: LocalizedError {
     case accessUnavailable
-    case invalidTomorrowRange
+    case invalidDayRange
 
     var errorDescription: String? {
         switch self {
         case .accessUnavailable: "Calendar access is unavailable."
-        case .invalidTomorrowRange: "NightLoop could not calculate tomorrow's date range."
+        case .invalidDayRange: "NightLoop could not calculate the selected date range."
         }
     }
 }
@@ -22,15 +22,15 @@ final class CalendarSyncService {
         self.eventStore = eventStore
     }
 
-    func fetchTomorrowEvents(
-        relativeTo date: Date = .now,
+    func fetchEvents(
+        on date: Date = .now,
         calendar: Calendar = .autoupdatingCurrent
     ) throws -> [NightLoopCalendarEvent] {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
             throw CalendarSyncError.accessUnavailable
         }
-        guard let range = calendar.tomorrowRange(relativeTo: date) else {
-            throw CalendarSyncError.invalidTomorrowRange
+        guard let range = calendar.dayRange(containing: date) else {
+            throw CalendarSyncError.invalidDayRange
         }
 
         let predicate = eventStore.predicateForEvents(

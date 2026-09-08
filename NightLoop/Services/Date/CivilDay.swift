@@ -18,6 +18,12 @@ struct CivilDay: Hashable, Sendable {
 }
 
 extension Calendar {
+    func dayRange(containing date: Date) -> Range<Date>? {
+        let start = startOfDay(for: date)
+        guard let end = self.date(byAdding: .day, value: 1, to: start) else { return nil }
+        return start..<end
+    }
+
     func tomorrowRange(relativeTo date: Date) -> Range<Date>? {
         let today = startOfDay(for: date)
         guard let tomorrow = self.date(byAdding: .day, value: 1, to: today),

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TomorrowEventsSection: View {
-    let referenceDate: Date
+    let date: Date
     let refreshRevision: Int
 
     @StateObject private var viewModel = TomorrowEventsViewModel()
@@ -9,14 +9,14 @@ struct TomorrowEventsSection: View {
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.events.isEmpty {
-                ProgressView("Reading tomorrow's calendar…")
+                ProgressView("Reading \(dayName.lowercased())'s calendar…")
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 content
             }
         }
         .task(id: refreshID) {
-            await viewModel.refresh(relativeTo: referenceDate)
+            await viewModel.refresh(for: date)
         }
     }
 
@@ -37,10 +37,10 @@ struct TomorrowEventsSection: View {
 
     private var permissionPrompt: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("See tomorrow's events beside your evening plan. NightLoop only reads them on this Mac.")
+            Text("See the selected day's events beside your plan. NightLoop only reads them on this Mac.")
                 .foregroundStyle(.secondary)
             Button("Connect Calendar") {
-                Task { await viewModel.requestAccess(relativeTo: referenceDate) }
+                Task { await viewModel.requestAccess(for: date) }
             }
         }
     }
@@ -48,8 +48,8 @@ struct TomorrowEventsSection: View {
     private var unavailablePrompt: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(viewModel.permissionState == .writeOnly
-                 ? "NightLoop needs full calendar access to read tomorrow's events."
-                 : "Calendar access is off. Your routines and projects still work normally.")
+                 ? "NightLoop needs full calendar access to read the selected day's events."
+                 : "Calendar access is off. Your cards and projects still work normally.")
                 .foregroundStyle(.secondary)
             if viewModel.permissionState != .restricted {
                 Button("Open Privacy Settings") { viewModel.openCalendarPrivacySettings() }
@@ -64,7 +64,7 @@ struct TomorrowEventsSection: View {
                 Text(errorMessage).foregroundStyle(.secondary)
             } else if viewModel.events.isEmpty {
                 ContentUnavailableView(
-                    "Tomorrow Is Clear",
+                    "\(dayName) Is Clear",
                     systemImage: "calendar.badge.checkmark",
                     description: Text("No active calendar events are scheduled.")
                 )
@@ -72,7 +72,7 @@ struct TomorrowEventsSection: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(viewModel.events) { event in
-                        CalendarEventRow(event: event, tomorrowRange: tomorrowRange)
+                        CalendarEventRow(event: event, dayRange: eventRange)
                         if event.id != viewModel.events.last?.id { Divider().padding(.leading, 18) }
                     }
                 }
@@ -81,7 +81,7 @@ struct TomorrowEventsSection: View {
             HStack {
                 Spacer()
                 Button("Refresh", systemImage: "arrow.clockwise") {
-                    Task { await viewModel.refresh(relativeTo: referenceDate) }
+                    Task { await viewModel.refresh(for: date) }
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(JournalIconButtonStyle())
@@ -92,18 +92,22 @@ struct TomorrowEventsSection: View {
         }
     }
 
-    private var tomorrowRange: Range<Date>? {
-        Calendar.autoupdatingCurrent.tomorrowRange(relativeTo: referenceDate)
+    private var eventRange: Range<Date>? {
+        Calendar.autoupdatingCurrent.dayRange(containing: date)
     }
 
     private var refreshID: String {
-        "\(CivilDay(date: referenceDate).key)-\(refreshRevision)"
+        "\(CivilDay(date: date).key)-\(refreshRevision)"
+    }
+
+    private var dayName: String {
+        Calendar.autoupdatingCurrent.isDateInToday(date) ? "Today" : "Tomorrow"
     }
 }
 
 private struct CalendarEventRow: View {
     let event: NightLoopCalendarEvent
-    let tomorrowRange: Range<Date>?
+    let dayRange: Range<Date>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -135,10 +139,10 @@ private struct CalendarEventRow: View {
 
     private var timingLabel: String {
         if event.isAllDay { return "All day" }
-        guard let tomorrowRange else { return event.startDate.formatted(date: .omitted, time: .shortened) }
-        let startsBefore = event.startDate < tomorrowRange.lowerBound
-        let endsAfter = event.endDate > tomorrowRange.upperBound
-        if startsBefore && endsAfter { return "Continues through tomorrow" }
+        guard let dayRange else { return event.startDate.formatted(date: .omitted, time: .shortened) }
+        let startsBefore = event.startDate < dayRange.lowerBound
+        let endsAfter = event.endDate > dayRange.upperBound
+        if startsBefore && endsAfter { return "Continues through the day" }
         if startsBefore { return "Until \(event.endDate.formatted(date: .omitted, time: .shortened))" }
         if endsAfter { return "From \(event.startDate.formatted(date: .omitted, time: .shortened)) · continues" }
         return "\(event.startDate.formatted(date: .omitted, time: .shortened))–\(event.endDate.formatted(date: .omitted, time: .shortened))"

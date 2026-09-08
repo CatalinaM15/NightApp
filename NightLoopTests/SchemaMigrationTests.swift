@@ -28,7 +28,7 @@ struct SchemaMigrationTests {
             try oldContainer.mainContext.save()
         }
 
-        let newSchema = Schema(versionedSchema: NightLoopSchemaV4.self)
+        let newSchema = Schema(versionedSchema: NightLoopSchemaV5.self)
         let newConfiguration = ModelConfiguration("Migration", schema: newSchema, url: storeURL, cloudKitDatabase: .none)
         let migratedContainer = try ModelContainer(
             for: newSchema,
