@@ -10,8 +10,10 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>HomeBase</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>HomeBase</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,6 +23,8 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>NightLoop reads tomorrow's events to help you plan your evening. Nothing leaves your Mac.</string>
+	<string>HomeBase reads your selected calendars for daily and weekly planning.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>HomeBase reads your chosen Reminders list and lets you add, edit, and complete reminders. Changes sync through your existing Reminders account.</string>
 </dict>
 </plist>

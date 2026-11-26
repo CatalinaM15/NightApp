@@ -21,7 +21,7 @@ struct TodayCardsTests {
 
         let routines = try context.fetch(FetchDescriptor<Routine>())
         #expect(routines.count == 4)
-        #expect(TodayCardsStore.routine(forSlot: 4, in: routines)?.title == "Daily Care")
+        #expect(TodayCardsStore.routine(forSlot: 4, in: routines)?.title == "Daily")
         #expect(TodayCardsStore.routine(forSlot: 4, in: routines)?.steps.sorted { $0.order < $1.order }.map(\.title) == ["Body Cream", "Skincare"])
         #expect((5...7).compactMap { TodayCardsStore.routine(forSlot: $0, in: routines)?.title } == ["Group 1", "Group 2", "Group 3"])
         #expect(!routines.contains { $0.title == "Group 4" || $0.title == "Group 5" || $0.title == "Simple" })
@@ -110,6 +110,28 @@ struct TodayCardsTests {
         #expect(namesByCategory[RotatingCardCategory.bodyCare.rawValue]?.contains { $0.name == "Face Mask" } == true)
         #expect(namesByCategory[RotatingCardCategory.exercise.rawValue]?.contains { $0.name == "Swim" } == true)
         #expect(namesByCategory[RotatingCardCategory.hobby.rawValue]?.contains { $0.name == "Music" } == true)
+    }
+
+    @Test func deletingAnOptionPreservesCompletedHistoryAndRemovesIncompleteSelections() throws {
+        let (container, monday) = try configuredContainer()
+        let context = container.mainContext
+        let options = try context.fetch(FetchDescriptor<CardOption>())
+        let run = try #require(options.first { $0.name == "Run" })
+        let gym = try #require(options.first { $0.name == "Gym" })
+        let completed = try TodayCardsStore.choose(run, category: .exercise, on: monday, history: [], in: context)
+        try TodayCardsStore.complete(completed, in: context)
+        let tuesday = try #require(Calendar.current.date(byAdding: .day, value: 1, to: monday))
+        let incomplete = try TodayCardsStore.choose(gym, category: .exercise, on: tuesday, history: [completed], in: context)
+
+        try TodayCardsStore.deleteOption(gym, history: [completed, incomplete], in: context)
+        var remainingHistory = try context.fetch(FetchDescriptor<SlotSelectionHistory>())
+        #expect(remainingHistory.count == 1)
+        #expect(remainingHistory.first?.optionName == "Run")
+
+        try TodayCardsStore.deleteOption(run, history: remainingHistory, in: context)
+        remainingHistory = try context.fetch(FetchDescriptor<SlotSelectionHistory>())
+        #expect(remainingHistory.count == 1)
+        #expect(try context.fetch(FetchDescriptor<CardOption>()).contains { $0.name == "Run" } == false)
     }
 
     @Test func datedOverrideDoesNotChangeWeekdayDefaultsAndStartsIncomplete() throws {

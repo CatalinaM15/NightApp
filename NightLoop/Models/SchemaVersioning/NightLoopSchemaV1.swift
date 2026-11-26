@@ -232,16 +232,48 @@ enum NightLoopSchemaV5: VersionedSchema {
     }
 }
 
+enum NightLoopSchemaV6: VersionedSchema {
+    static var versionIdentifier = Schema.Version(6, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        NightLoopSchemaV5.models + [DailyCareStepGroup.self]
+    }
+}
+
+enum NightLoopSchemaV7: VersionedSchema {
+    static var versionIdentifier = Schema.Version(7, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        NightLoopSchemaV6.models + [MaintenanceItem.self, MaintenanceRecord.self]
+    }
+}
+
+enum NightLoopSchemaV8: VersionedSchema {
+    static var versionIdentifier = Schema.Version(8, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        NightLoopSchemaV7.models + [DailyStepSchedule.self]
+    }
+}
+
+enum NightLoopSchemaV9: VersionedSchema {
+    static var versionIdentifier = Schema.Version(9, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        NightLoopSchemaV8.models + [DailyStepActivityLink.self]
+    }
+}
+
 enum NightLoopMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [NightLoopSchemaV1.self, NightLoopSchemaV2.self, NightLoopSchemaV3.self, NightLoopSchemaV4.self, NightLoopSchemaV5.self]
+        [NightLoopSchemaV1.self, NightLoopSchemaV2.self, NightLoopSchemaV3.self, NightLoopSchemaV4.self, NightLoopSchemaV5.self, NightLoopSchemaV6.self, NightLoopSchemaV7.self, NightLoopSchemaV8.self, NightLoopSchemaV9.self]
     }
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: NightLoopSchemaV1.self, toVersion: NightLoopSchemaV2.self),
             .lightweight(fromVersion: NightLoopSchemaV2.self, toVersion: NightLoopSchemaV3.self),
             .lightweight(fromVersion: NightLoopSchemaV3.self, toVersion: NightLoopSchemaV4.self),
-            .lightweight(fromVersion: NightLoopSchemaV4.self, toVersion: NightLoopSchemaV5.self)
+            .lightweight(fromVersion: NightLoopSchemaV4.self, toVersion: NightLoopSchemaV5.self),
+            .lightweight(fromVersion: NightLoopSchemaV5.self, toVersion: NightLoopSchemaV6.self),
+            .lightweight(fromVersion: NightLoopSchemaV6.self, toVersion: NightLoopSchemaV7.self),
+            .lightweight(fromVersion: NightLoopSchemaV7.self, toVersion: NightLoopSchemaV8.self),
+            .lightweight(fromVersion: NightLoopSchemaV8.self, toVersion: NightLoopSchemaV9.self)
         ]
     }
 }

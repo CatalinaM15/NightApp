@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite("Weekly stats")
 struct WeeklyStatsTests {
-    @Test func categoryStatsUseTheFixedSundayThroughSaturdayWeek() throws {
+    @Test func categoryStatsUseTheCalendarsSundayThroughSaturdayWeek() throws {
         let container = try ModelContainerFactory.makeContainer(inMemory: true)
         let context = container.mainContext
         try TodayCardsStore.bootstrap(in: context)
@@ -53,6 +53,20 @@ struct WeeklyStatsTests {
         #expect(stats.experiments.first?.streakDays == 4)
     }
 
+    @Test func mondayFirstWeekExcludesPreviousSunday() throws {
+        var calendar = testCalendar
+        calendar.firstWeekday = 2
+        let sunday = date(2026, 9, 6, calendar: calendar)
+        let monday = date(2026, 9, 7, calendar: calendar)
+        let history = [
+            SlotSelectionHistory(category: .exercise, optionName: "Run", date: sunday, completedAt: sunday, calendar: calendar),
+            SlotSelectionHistory(category: .exercise, optionName: "Gym", date: monday, completedAt: monday, calendar: calendar)
+        ]
+        let stats = WeeklyStatsCalculator.calculate(on: monday, options: [], history: history, routines: [], calendar: calendar)
+        #expect(calendar.isDate(stats.weekStart, inSameDayAs: monday))
+        #expect(stats.exerciseCompletedDays == 1)
+    }
+
     @Test func incompleteCurrentDayDoesNotBreakExperimentStreak() throws {
         let container = try ModelContainerFactory.makeContainer(inMemory: true)
         let context = container.mainContext
@@ -83,6 +97,7 @@ struct WeeklyStatsTests {
     private var testCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.firstWeekday = 1
         return calendar
     }
 

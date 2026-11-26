@@ -24,6 +24,11 @@ extension Calendar {
         return start..<end
     }
 
+    func weekRange(containing date: Date) -> Range<Date>? {
+        guard let interval = dateInterval(of: .weekOfYear, for: date) else { return nil }
+        return interval.start..<interval.end
+    }
+
     func tomorrowRange(relativeTo date: Date) -> Range<Date>? {
         let today = startOfDay(for: date)
         guard let tomorrow = self.date(byAdding: .day, value: 1, to: today),

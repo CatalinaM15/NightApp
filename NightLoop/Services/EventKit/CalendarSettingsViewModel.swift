@@ -18,7 +18,7 @@ final class CalendarSettingsViewModel: ObservableObject {
 
     var statusDescription: String {
         switch permissionState {
-        case .fullAccess: "Connected — tomorrow’s events can be read."
+        case .fullAccess: "Connected — daily and weekly events can be read."
         case .notDetermined: "Not connected."
         case .denied: "Access is disabled in System Settings."
         case .restricted: "Calendar access is restricted on this Mac."

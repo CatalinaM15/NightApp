@@ -23,6 +23,8 @@ enum RoutineWeekday: Int, CaseIterable, Identifiable {
         }
     }
 
+    var fullName: String { Calendar.autoupdatingCurrent.weekdaySymbols[(rawValue + 1) % 7] }
+
     var bit: Int { 1 << rawValue }
 
     init?(calendarWeekday: Int) {

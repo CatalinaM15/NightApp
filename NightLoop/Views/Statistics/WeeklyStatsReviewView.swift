@@ -44,7 +44,7 @@ struct WeeklyStatsReviewView: View {
                 statCard("Hobby", icon: "paintbrush.pointed") {
                     Text(stats.hobbiesDone.isEmpty ? "No hobbies completed yet this week." : "This week you did: \(stats.hobbiesDone.joined(separator: ", ")).")
                 }
-                statCard("Daily Care", icon: "heart.text.square") {
+                statCard("Daily", icon: "heart.text.square") {
                     ratio(stats.dailyCareCompletedDays)
                 }
                 statCard("Experiments", icon: "flask") {

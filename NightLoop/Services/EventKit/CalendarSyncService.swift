@@ -9,7 +9,7 @@ enum CalendarSyncError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .accessUnavailable: "Calendar access is unavailable."
-        case .invalidDayRange: "NightLoop could not calculate the selected date range."
+        case .invalidDayRange: "HomeBase could not calculate the selected date range."
         }
     }
 }
@@ -22,21 +22,33 @@ final class CalendarSyncService {
         self.eventStore = eventStore
     }
 
+    func availableCalendars() -> [EKCalendar] {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+        return eventStore.calendars(for: .event).sorted {
+            ($0.source.title, $0.title) < ($1.source.title, $1.title)
+        }
+    }
+
     func fetchEvents(
         on date: Date = .now,
-        calendar: Calendar = .autoupdatingCurrent
+        calendar: Calendar = .autoupdatingCurrent,
+        selection: CalendarSelection = CalendarSelection(),
+        entireWeek: Bool = false
     ) throws -> [NightLoopCalendarEvent] {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
             throw CalendarSyncError.accessUnavailable
         }
-        guard let range = calendar.dayRange(containing: date) else {
+        guard let range = entireWeek ? calendar.weekRange(containing: date) : calendar.dayRange(containing: date) else {
             throw CalendarSyncError.invalidDayRange
         }
 
+        let calendars = eventStore.calendars(for: .event).filter { selection.contains($0.calendarIdentifier) }
+        // EventKit may treat an empty calendars array as all calendars.
+        guard !calendars.isEmpty else { return [] }
         let predicate = eventStore.predicateForEvents(
             withStart: range.lowerBound,
             end: range.upperBound,
-            calendars: nil
+            calendars: calendars
         )
 
         let events = eventStore.events(matching: predicate).compactMap { event -> NightLoopCalendarEvent? in

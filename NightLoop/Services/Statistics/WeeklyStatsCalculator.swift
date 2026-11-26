@@ -32,12 +32,11 @@ enum WeeklyStatsCalculator {
         routines: [Routine],
         calendar inputCalendar: Calendar = .autoupdatingCurrent
     ) -> WeeklyStatsSnapshot {
-        var calendar = inputCalendar
-        calendar.firstWeekday = 1
+        let calendar = inputCalendar
         let today = calendar.startOfDay(for: date)
-        let weekdayOffset = max(calendar.component(.weekday, from: today) - 1, 0)
-        let weekStart = calendar.date(byAdding: .day, value: -weekdayOffset, to: today) ?? today
-        let weekEndExclusive = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? today
+        let range = calendar.weekRange(containing: today)
+        let weekStart = range?.lowerBound ?? today
+        let weekEndExclusive = range?.upperBound ?? today
         let weekEnd = calendar.date(byAdding: .day, value: -1, to: weekEndExclusive) ?? weekStart
 
         let bodyOptions = TodayCardsStore.options(for: .bodyCare, in: options)

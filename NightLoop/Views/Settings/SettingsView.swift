@@ -14,9 +14,9 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Window") {
-                Toggle("Keep NightLoop above other windows", isOn: $floatsAboveOtherWindows)
+                Toggle("Keep HomeBase above other windows", isOn: $floatsAboveOtherWindows)
                 Toggle("Show on every desktop Space", isOn: $joinsAllSpaces)
-                Text("NightLoop remembers the panel’s size and position automatically.")
+                Text("HomeBase remembers the panel’s size and position automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -61,7 +61,7 @@ struct SettingsView: View {
             Button("Open Notification Settings") { openNotificationSettings() }
             Button("OK", role: .cancel) {}
         } message: {
-            Text(reminderError ?? "Please check Notification settings for NightLoop.")
+            Text(reminderError ?? "Please check Notification settings for HomeBase.")
         }
     }
 

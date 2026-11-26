@@ -19,7 +19,7 @@ enum NightlyReminderError: LocalizedError {
     case permissionDenied
 
     var errorDescription: String? {
-        "Notifications are disabled for NightLoop. You can enable them in System Settings."
+        "Notifications are disabled for HomeBase. You can enable them in System Settings."
     }
 }
 
@@ -64,7 +64,7 @@ actor NightlyReminderScheduler {
         center.removePendingNotificationRequests(withIdentifiers: [Self.identifier])
 
         let content = UNMutableNotificationContent()
-        content.title = "A quiet moment for NightLoop"
+        content.title = "A quiet moment for HomeBase"
         content.body = "Review tomorrow, close your loops, and settle the evening."
         content.sound = .default
 

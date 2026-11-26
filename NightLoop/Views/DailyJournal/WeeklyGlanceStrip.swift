@@ -40,10 +40,7 @@ struct WeeklyGlanceStrip: View {
     }
 
     private var days: [Date] {
-        let today = calendar.startOfDay(for: referenceDate)
-        let weekday = calendar.component(.weekday, from: today)
-        let offset = (weekday - calendar.firstWeekday + 7) % 7
-        guard let start = calendar.date(byAdding: .day, value: -offset, to: today) else { return [] }
+        guard let start = calendar.weekRange(containing: referenceDate)?.lowerBound else { return [] }
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 

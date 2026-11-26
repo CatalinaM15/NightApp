@@ -40,7 +40,7 @@ enum TodayCardsStore {
             routines.filter { !retainedIDs.contains($0.id) }.forEach(context.delete)
 
             let dailyCare = Routine(
-                title: "Daily Care",
+                title: "Daily",
                 iconName: "heart.text.square",
                 sortOrder: 0,
                 activePeriodStartedDayKey: CivilDay(date: date).key,
@@ -54,6 +54,7 @@ enum TodayCardsStore {
             routines = try context.fetch(FetchDescriptor<Routine>())
         }
 
+        if let daily = routine(forSlot: 4, in: routines), daily.title == "Daily Care" { daily.title = "Daily" }
         let options = try context.fetch(FetchDescriptor<CardOption>())
         for category in RotatingCardCategory.allCases where !options.contains(where: { $0.category == category.rawValue }) {
             for (index, name) in category.initialOptions.enumerated() {
@@ -81,7 +82,9 @@ enum TodayCardsStore {
         in context: ModelContext
     ) throws -> SlotSelectionHistory? {
         let day = calendar.startOfDay(for: date)
-        if let existing = history.first(where: {
+        // Both Daily and Today's Cards can resolve before either view's query refreshes.
+        let storedHistory = try context.fetch(FetchDescriptor<SlotSelectionHistory>())
+        if let existing = storedHistory.first(where: {
             $0.category == category.rawValue && calendar.isDate($0.date, inSameDayAs: day)
         }) { return existing }
 
@@ -106,7 +109,9 @@ enum TodayCardsStore {
         in context: ModelContext
     ) throws -> SlotSelectionHistory {
         let day = calendar.startOfDay(for: date)
-        if let existing = history.first(where: {
+        // Both Daily and Today's Cards can resolve before either view's query refreshes.
+        let storedHistory = try context.fetch(FetchDescriptor<SlotSelectionHistory>())
+        if let existing = storedHistory.first(where: {
             $0.category == category.rawValue && calendar.isDate($0.date, inSameDayAs: day)
         }) {
             existing.optionName = option.name
@@ -236,6 +241,22 @@ enum TodayCardsStore {
         history.filter { $0.category == option.category && $0.optionName == oldName }.forEach {
             $0.optionName = normalized
         }
+        try context.save()
+    }
+
+    static func deleteOption(
+        _ option: CardOption,
+        history: [SlotSelectionHistory],
+        in context: ModelContext
+    ) throws {
+        history
+            .filter {
+                $0.category == option.category
+                    && $0.optionName == option.name
+                    && $0.completedAt == nil
+            }
+            .forEach(context.delete)
+        context.delete(option)
         try context.save()
     }
 

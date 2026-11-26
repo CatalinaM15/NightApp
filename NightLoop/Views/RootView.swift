@@ -2,7 +2,6 @@ import SwiftData
 import SwiftUI
 
 struct RootView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openSettings) private var openSettings
     @AppStorage("floatsAboveOtherWindows") private var floatsAboveOtherWindows = true
@@ -13,10 +12,10 @@ struct RootView: View {
     @StateObject private var dayCoordinator = JournalDayCoordinator()
     @StateObject private var undoCoordinator = CompletionUndoCoordinator()
     @State private var planningTomorrow = false
+    @State private var calendarConnectionRevision = 0
     @State private var showsExperimentHistory = false
     @State private var showsWeeklyStats = false
-    @State private var noteClearRevision = 0
-    @State private var selectedNoteHasText = false
+    @State private var maintenancePage: MaintenanceKind?
 
     private var planningDate: Date {
         planningTomorrow
@@ -26,7 +25,12 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            if showsWeeklyStats {
+            if let kind = maintenancePage {
+                MaintenancePage(kind: kind, date: dayCoordinator.visibleDate, undoCoordinator: undoCoordinator) {
+                    maintenancePage = nil
+                }
+                .transition(reviewTransition)
+            } else if showsWeeklyStats {
                 WeeklyStatsReviewView(date: dayCoordinator.visibleDate) {
                     showsWeeklyStats = false
                 }
@@ -37,6 +41,7 @@ struct RootView: View {
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.48), value: showsWeeklyStats)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.48), value: maintenancePage)
         .frame(minWidth: 380, minHeight: 520)
         .foregroundStyle(JournalPalette.ink)
         .background { LeatherJournalBackground() }
@@ -62,16 +67,13 @@ struct RootView: View {
                 time: NightlyReminderTime(hour: reminderHour, minute: reminderMinute)
             )
         }
-        .task(id: CivilDay(date: dayCoordinator.visibleDate).key) {
-            try? DailyNoteStore.pruneNotes(before: dayCoordinator.visibleDate, in: modelContext)
-        }
         .toolbar {
             ToolbarItem {
                 Toggle(isOn: $floatsAboveOtherWindows) {
                     Label("Keep on Top", systemImage: floatsAboveOtherWindows ? "pin.fill" : "pin")
                 }
                 .toggleStyle(.button)
-                .help("Keep NightLoop above other windows")
+                .help("Keep HomeBase above other windows")
                 .accessibilityIdentifier("keep-on-top-toggle")
             }
             ToolbarItem {
@@ -80,7 +82,7 @@ struct RootView: View {
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .help("Open NightLoop settings")
+                .help("Open HomeBase settings")
             }
         }
     }
@@ -90,43 +92,9 @@ struct RootView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 WeeklyGlanceStrip(referenceDate: planningDate)
-                JournalSection(
-                    title: planningTomorrow ? "Tomorrow" : "Today",
-                    systemImage: "calendar",
-                    titleAction: { planningTomorrow.toggle() }
-                ) {
-                    GeometryReader { geometry in
-                        let availableWidth = max(geometry.size.width - 13, 0)
-                        HStack(alignment: .top, spacing: 12) {
-                            ScrollView {
-                                TomorrowEventsSection(
-                                    date: planningDate,
-                                    refreshRevision: dayCoordinator.calendarRefreshRevision
-                                )
-                            }
-                            .frame(width: availableWidth * 0.6)
-                            Divider()
-                            DailyNoteView(
-                                date: planningDate,
-                                clearRevision: noteClearRevision,
-                                hasText: $selectedNoteHasText,
-                                undoCoordinator: undoCoordinator
-                            )
-                                .frame(width: availableWidth * 0.4)
-                        }
-                    }
-                    .frame(height: 250)
-                } accessory: {
-                    HStack(spacing: 8) {
-                        Label("Note", systemImage: "note.text")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(JournalPalette.paperInk)
-                        Button("Clear") { noteClearRevision += 1 }
-                            .buttonStyle(.borderless)
-                            .disabled(!selectedNoteHasText)
-                    }
-                }
-                JournalSection(title: "Today's Cards", systemImage: "sparkles") {
+                DailyCareView(date: dayCoordinator.visibleDate, undoCoordinator: undoCoordinator)
+                calendarCard
+                JournalSection(title: planningTomorrow ? "Tomorrow's Cards" : "Today's Cards", systemImage: "sparkles") {
                     RoutineListView(
                         date: dayCoordinator.visibleDate,
                         planningTomorrow: $planningTomorrow
@@ -143,6 +111,7 @@ struct RootView: View {
                         .help("Experiment history")
                     }
                 }
+                ReminderInboxView(undoCoordinator: undoCoordinator)
                 JournalSection(title: "Projects", systemImage: "checklist") {
                     ProjectPickerView(undoCoordinator: undoCoordinator)
                 }
@@ -151,21 +120,48 @@ struct RootView: View {
         }
     }
 
+    private var calendarCard: some View {
+        GeometryReader { geometry in
+            let availableWidth = max(geometry.size.width - 25, 0)
+            HStack(alignment: .top, spacing: 12) {
+                TomorrowEventsSection(
+                    date: planningDate,
+                    refreshRevision: dayCoordinator.calendarRefreshRevision + calendarConnectionRevision,
+                    titleAction: { planningTomorrow.toggle() },
+                    didConnect: { calendarConnectionRevision += 1 }
+                )
+                .frame(width: availableWidth * 0.6)
+                Divider()
+                TomorrowEventsSection(
+                    date: dayCoordinator.visibleDate,
+                    refreshRevision: dayCoordinator.calendarRefreshRevision + calendarConnectionRevision,
+                    entireWeek: true
+                )
+                .font(.caption)
+                .frame(width: availableWidth * 0.4)
+            }
+        }
+        .frame(height: 220)
+        .padding(16)
+        .foregroundStyle(JournalPalette.paperInk)
+        .journalCard()
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "moon.stars.fill")
+            Image(systemName: "house.fill")
                 .font(.system(size: 24, weight: .medium))
                 .foregroundStyle(JournalPalette.ember)
                 .frame(width: 42, height: 42)
                 .background(JournalPalette.raised.opacity(0.72), in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text("TONIGHT'S JOURNAL")
+                Text("YOUR DAILY HOME BASE")
                     .font(JournalTypography.eyebrow)
                     .tracking(1.4)
                     .foregroundStyle(JournalPalette.ember)
                 HStack(spacing: 10) {
-                    Text("NightLoop")
+                    Text("HomeBase")
                         .font(JournalTypography.journalTitle)
                     Button {
                         showsWeeklyStats = true
@@ -179,6 +175,18 @@ struct RootView: View {
                     .background(JournalPalette.card, in: Circle())
                     .frame(minWidth: 28, minHeight: 28)
                     .help("Open weekly stats")
+                    ForEach(MaintenanceKind.allCases) { kind in
+                        Button { maintenancePage = kind } label: {
+                            Label(kind.title, systemImage: kind.iconName)
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(JournalPalette.raised)
+                        .padding(5)
+                        .background(JournalPalette.card, in: Circle())
+                        .frame(minWidth: 28, minHeight: 28)
+                        .help("Open \(kind.title.lowercased())")
+                    }
                 }
                 Text(dayCoordinator.visibleDate.formatted(date: .complete, time: .omitted))
                     .font(JournalTypography.date)
@@ -213,7 +221,7 @@ private struct JournalPageFlip: ViewModifier {
     }
 }
 
-private struct UndoToast: View {
+struct UndoToast: View {
     let message: String
     let undo: () -> Void
 
@@ -236,7 +244,7 @@ private struct UndoToast: View {
     }
 }
 
-private struct JournalSection<Content: View, Accessory: View>: View {
+struct JournalSection<Content: View, Accessory: View>: View {
     let title: String
     let systemImage: String
     let titleAction: (() -> Void)?
@@ -268,7 +276,7 @@ private struct JournalSection<Content: View, Accessory: View>: View {
                     }
                     .buttonStyle(.plain)
                     .help("Show \(title == "Today" ? "tomorrow" : "today")")
-                    .accessibilityHint("Switches the calendar, note, and rotating cards")
+                    .accessibilityHint("Switches the daily calendar and rotating cards; Daily and Inbox stay on today")
                 } else {
                     Label(title, systemImage: systemImage)
                         .font(JournalTypography.sectionTitle)
@@ -286,7 +294,7 @@ private struct JournalSection<Content: View, Accessory: View>: View {
     }
 }
 
-private extension JournalSection where Accessory == EmptyView {
+extension JournalSection where Accessory == EmptyView {
     init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
         self.title = title
         self.systemImage = systemImage

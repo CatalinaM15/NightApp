@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class TomorrowEventsViewModel: ObservableObject {
     @Published private(set) var permissionState: CalendarPermissionState
+    @Published private(set) var calendars: [EKCalendar] = []
     @Published private(set) var events: [NightLoopCalendarEvent] = []
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
@@ -19,10 +20,11 @@ final class TomorrowEventsViewModel: ObservableObject {
         self.permissionState = permissionManager.state
     }
 
-    func refresh(for date: Date) async {
+    func refresh(for date: Date, selection: CalendarSelection = CalendarSelection(), entireWeek: Bool = false) async {
         permissionState = permissionManager.state
         guard permissionState == .fullAccess else {
             events = []
+            calendars = []
             errorMessage = nil
             return
         }
@@ -30,7 +32,8 @@ final class TomorrowEventsViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            events = try syncService.fetchEvents(on: date)
+            calendars = syncService.availableCalendars()
+            events = try syncService.fetchEvents(on: date, selection: selection, entireWeek: entireWeek)
             errorMessage = nil
         } catch {
             events = []
@@ -38,13 +41,13 @@ final class TomorrowEventsViewModel: ObservableObject {
         }
     }
 
-    func requestAccess(for date: Date) async {
+    func requestAccess(for date: Date, selection: CalendarSelection = CalendarSelection(), entireWeek: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
         do {
             _ = try await permissionManager.requestFullAccess()
             permissionState = permissionManager.state
-            await refresh(for: date)
+            await refresh(for: date, selection: selection, entireWeek: entireWeek)
         } catch {
             permissionState = permissionManager.state
             errorMessage = error.localizedDescription

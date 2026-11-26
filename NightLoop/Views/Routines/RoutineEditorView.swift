@@ -9,6 +9,7 @@ struct RoutineEditorView: View {
     let allowsTypeSelection: Bool
     let allowsTitleEditing: Bool
     let showsSchedule: Bool
+    let showsCarePeriods: Bool
     let save: (String, String, Int, Bool, [RoutineStepDraft]) throws -> Void
 
     @State private var routineTitle: String
@@ -30,6 +31,7 @@ struct RoutineEditorView: View {
         allowsTypeSelection: Bool = true,
         allowsTitleEditing: Bool = true,
         showsSchedule: Bool = true,
+        showsCarePeriods: Bool = false,
         save: @escaping (String, String, Int, Bool, [RoutineStepDraft]) throws -> Void
     ) {
         self.title = title
@@ -38,6 +40,7 @@ struct RoutineEditorView: View {
         self.allowsTypeSelection = allowsTypeSelection
         self.allowsTitleEditing = allowsTitleEditing
         self.showsSchedule = showsSchedule
+        self.showsCarePeriods = showsCarePeriods
         self.save = save
         _routineTitle = State(initialValue: initialTitle)
         _iconName = State(initialValue: initialIcon)
@@ -71,21 +74,23 @@ struct RoutineEditorView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Icon")
-                .font(.headline)
-            HStack {
-                ForEach(icons, id: \.self) { icon in
-                    Button {
-                        iconName = icon
-                    } label: {
-                        Image(systemName: icon)
-                            .frame(width: 28, height: 28)
-                            .background(iconName == icon ? JournalPalette.ember.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 7))
+            if !showsCarePeriods {
+                Text("Icon")
+                    .font(.headline)
+                HStack {
+                    ForEach(icons, id: \.self) { icon in
+                        Button {
+                            iconName = icon
+                        } label: {
+                            Image(systemName: icon)
+                                .frame(width: 28, height: 28)
+                                .background(iconName == icon ? JournalPalette.ember.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(icon)
+                        .accessibilityValue(iconName == icon ? "Selected" : "Not selected")
+                        .accessibilityAddTraits(iconName == icon ? .isSelected : [])
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(icon)
-                    .accessibilityValue(iconName == icon ? "Selected" : "Not selected")
-                    .accessibilityAddTraits(iconName == icon ? .isSelected : [])
                 }
             }
 
@@ -119,15 +124,17 @@ struct RoutineEditorView: View {
                         Text("Checklist Steps").font(.headline)
                         Spacer()
                         Button("Add Step", systemImage: "plus") {
-                            stepDrafts.append(RoutineStepDraft())
+                            stepDrafts.append(RoutineStepDraft(carePeriod: showsCarePeriods ? .morning : nil, dailySchedule: showsCarePeriods ? DailyStepScheduleDraft() : nil))
                         }
                     }
                     ScrollView {
                         VStack(spacing: 8) {
                             ForEach(stepDrafts) { draft in stepRow(draft) }
                         }
+                        .padding(.trailing, 20)
+                        .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: 190)
+                    .frame(maxHeight: showsCarePeriods ? 360 : 190)
                     if stepDrafts.isEmpty {
                         Text("Add at least one step.").font(.caption).foregroundStyle(.red)
                     }
@@ -151,6 +158,8 @@ struct RoutineEditorView: View {
         }
         .padding(24)
         .frame(width: 470)
+        .foregroundStyle(Color.primary)
+        .background(.background)
     }
 
     private func performSave() {
@@ -166,27 +175,104 @@ struct RoutineEditorView: View {
         !routineTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         scheduledWeekdaysMask != 0 &&
         (!isGrouped || (!stepDrafts.isEmpty && stepDrafts.allSatisfy {
-            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            ($0.dailySchedule.map { $0.weekdaysMask != 0 } ?? true)
         }))
     }
 
     private func stepRow(_ draft: RoutineStepDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 8) {
-            Image(systemName: "line.3.horizontal").foregroundStyle(.secondary).help("Drag to reorder")
-            TextField("Step title", text: binding(for: draft.id).title).textFieldStyle(.roundedBorder)
-            Button { stepDrafts.removeAll { $0.id == draft.id } } label: {
-                Label("Delete Step", systemImage: "trash")
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.secondary)
+                .help("Drag to reorder")
+                .draggable(draft.id.uuidString)
+            if isFixedExercise(draft) {
+                Text("Exercise").frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                TextField("Step title", text: binding(for: draft.id).title).textFieldStyle(.roundedBorder)
             }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .foregroundStyle(.red)
+            if showsCarePeriods {
+                Picker("Time of day", selection: binding(for: draft.id).carePeriod) {
+                    ForEach(DailyCarePeriod.allCases) { period in
+                        Text(period.title).tag(Optional(period))
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 115)
+                .accessibilityLabel("Time of day for \(draft.title)")
+            }
+            if !isFixedExercise(draft) {
+                Button { stepDrafts.removeAll { $0.id == draft.id } } label: {
+                    Label("Delete Step", systemImage: "trash").frame(width: 28, height: 28)
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .help("Delete \(draft.title)")
+            }
+        }
+        if showsCarePeriods && !isFixedExercise(draft) {
+            DisclosureGroup("Days & variations") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Select when this step appears. Optional details appear below its title on that day.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Select All", isOn: Binding(
+                        get: { (draft.dailySchedule?.weekdaysMask ?? RoutineSchedule.allDaysMask) == RoutineSchedule.allDaysMask },
+                        set: { selected in updateSchedule(for: draft.id) {
+                            $0.weekdaysMask = selected ? RoutineSchedule.allDaysMask : 0
+                        } }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .accessibilityLabel("Select all weekdays for \(draft.title)")
+                    ForEach(RoutineWeekday.allCases) { day in
+                        let schedule = draft.dailySchedule ?? DailyStepScheduleDraft()
+                        HStack(spacing: 8) {
+                            Toggle(day.shortName, isOn: Binding(
+                                get: { RoutineSchedule.contains(day, in: schedule.weekdaysMask) },
+                                set: { selected in updateSchedule(for: draft.id) { value in
+                                    if selected { value.weekdaysMask |= day.bit }
+                                    else { value.weekdaysMask &= ~day.bit }
+                                } }
+                            ))
+                            .toggleStyle(.checkbox)
+                            .frame(width: 65, alignment: .leading)
+                            TextField("Detail (optional)", text: Binding(
+                                get: { schedule.variations[day.rawValue] },
+                                set: { text in updateSchedule(for: draft.id) { $0.variations[day.rawValue] = text } }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!RoutineSchedule.contains(day, in: schedule.weekdaysMask))
+                            .accessibilityLabel("\(day.fullName) variation for \(draft.title)")
+                        }
+                    }
+                    if (draft.dailySchedule?.weekdaysMask ?? RoutineSchedule.allDaysMask) == 0 {
+                        Text("Choose at least one day.").font(.caption).foregroundStyle(.red)
+                    }
+                }
+                .padding(.top, 6)
+            }
+            .font(.caption)
+        }
         }
         .contentShape(Rectangle())
-        .draggable(draft.id.uuidString)
         .dropDestination(for: String.self) { identifiers, _ in
             guard let value = identifiers.first, let sourceID = UUID(uuidString: value) else { return false }
             return move(sourceID, before: draft.id)
         }
+    }
+
+    private func isFixedExercise(_ draft: RoutineStepDraft) -> Bool {
+        showsCarePeriods && draft.title == "Exercise" && draft.dailySchedule?.linkedCategory == .exercise
+    }
+
+    private func updateSchedule(for id: UUID, change: (inout DailyStepScheduleDraft) -> Void) {
+        let draftBinding = binding(for: id)
+        var draft = draftBinding.wrappedValue
+        var schedule = draft.dailySchedule ?? DailyStepScheduleDraft()
+        change(&schedule)
+        draft.dailySchedule = schedule
+        draftBinding.wrappedValue = draft
     }
 
     private func binding(for id: UUID) -> Binding<RoutineStepDraft> {

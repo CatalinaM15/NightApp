@@ -29,7 +29,6 @@ struct RoutineListView: View {
                     complete: { complete($0) }
                 )
             }
-            GroupedCardTile(slot: 4, fallbackTitle: "Daily Care", routine: TodayCardsStore.routine(forSlot: 4, in: routines), date: date, reportError: report)
             ForEach(5...7, id: \.self) { slot in
                 GroupedCardTile(slot: slot, fallbackTitle: "Experiment \(slot - 4)", routine: TodayCardsStore.routine(forSlot: slot, in: routines), date: date, reportError: report)
             }
@@ -160,13 +159,13 @@ private struct GroupedCardTile: View {
     @ViewBuilder private var editor: some View {
         if let routine {
             RoutineEditorView(
-                title: slot == 4 ? "Edit Daily Care" : "Edit Experiment",
+                title: slot == 4 ? "Edit Daily" : "Edit Experiment",
                 initialTitle: routine.title, initialIcon: routine.iconName,
                 initialScheduledWeekdaysMask: RoutineSchedule.allDaysMask, initialIsGrouped: true,
                 initialSteps: routine.steps.sorted { $0.order < $1.order }.map { RoutineStepDraft(id: $0.id, title: $0.title) },
                 allowsTypeSelection: false, allowsTitleEditing: slot != 4, showsSchedule: false
             ) { title, icon, _, _, steps in
-                try RoutineStore.update(routine, title: slot == 4 ? "Daily Care" : title, iconName: icon, scheduledWeekdaysMask: RoutineSchedule.allDaysMask, steps: steps, in: modelContext)
+                try RoutineStore.update(routine, title: slot == 4 ? "Daily" : title, iconName: icon, scheduledWeekdaysMask: RoutineSchedule.allDaysMask, steps: steps, in: modelContext)
             }
         } else {
             RoutineEditorView(
@@ -205,7 +204,7 @@ private struct CardTileSurface: View {
     }
 }
 
-private struct RotatingCardPicker: View {
+struct RotatingCardPicker: View {
     @Environment(\.modelContext) private var modelContext
     let category: RotatingCardCategory
     let date: Date
@@ -288,6 +287,7 @@ private struct CardOptionEditor: View {
     @State private var name: String
     @State private var weekdaysMask: Int
     @State private var errorMessage: String?
+    @State private var confirmsDeletion = false
 
     init(option: CardOption, allOptions: [CardOption], history: [SlotSelectionHistory]) {
         self.option = option
@@ -323,6 +323,9 @@ private struct CardOptionEditor: View {
             }
             if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
             HStack {
+                Button("Delete Option", systemImage: "trash", role: .destructive) {
+                    confirmsDeletion = true
+                }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                 Button("Save") { save() }
@@ -332,6 +335,16 @@ private struct CardOptionEditor: View {
         }
         .padding(24)
         .frame(width: 470)
+        .confirmationDialog(
+            "Delete \(option.name)?",
+            isPresented: $confirmsDeletion,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Option", role: .destructive) { deleteOption() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The option and its default days will be removed. Completed activity remains in your history.")
+        }
     }
 
     private func save() {
@@ -344,6 +357,15 @@ private struct CardOptionEditor: View {
                 history: history,
                 in: modelContext
             )
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteOption() {
+        do {
+            try TodayCardsStore.deleteOption(option, history: history, in: modelContext)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

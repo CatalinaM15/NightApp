@@ -37,7 +37,11 @@ enum RoutineGroupCompletionStore {
             return RoutineGroupCompletionChange(stepCompletions: [], parentCompletion: nil)
         }
 
-        let completesFinalStep = completedStepCount(for: routine, on: date, calendar: calendar) == routine.steps.count - 1
+        let required = try scheduledSteps(for: routine, on: date, calendar: calendar, in: context)
+        guard required.contains(where: { $0.id == step.id }) else {
+            return RoutineGroupCompletionChange(stepCompletions: [], parentCompletion: nil)
+        }
+        let completesFinalStep = required.filter { isComplete($0, on: date, calendar: calendar) }.count == required.count - 1
         let completion = NightRoutineStepCompletion(date: date, step: step, calendar: calendar)
         context.insert(completion)
         let parent = completesFinalStep
@@ -54,8 +58,10 @@ enum RoutineGroupCompletionStore {
         timeZone: TimeZone = .autoupdatingCurrent,
         in context: ModelContext
     ) throws -> RoutineGroupCompletionChange {
+        let required = try scheduledSteps(for: routine, on: date, calendar: calendar, in: context)
+        guard !required.isEmpty else { return RoutineGroupCompletionChange(stepCompletions: [], parentCompletion: nil) }
         var createdSteps: [NightRoutineStepCompletion] = []
-        for step in routine.steps where !isComplete(step, on: date, calendar: calendar) {
+        for step in required where !isComplete(step, on: date, calendar: calendar) {
             let completion = NightRoutineStepCompletion(date: date, step: step, calendar: calendar)
             context.insert(completion)
             createdSteps.append(completion)
@@ -118,6 +124,29 @@ enum RoutineGroupCompletionStore {
             context.delete(parent)
         }
         try context.save()
+    }
+
+    static func synchronizeDailyCompletion(
+        for routine: Routine, on date: Date, calendar: Calendar = .autoupdatingCurrent, in context: ModelContext
+    ) throws {
+        let required = try scheduledSteps(for: routine, on: date, calendar: calendar, in: context)
+        if !required.isEmpty && required.allSatisfy({ isComplete($0, on: date, calendar: calendar) }) {
+            _ = try makeParentCompletionIfNeeded(for: routine, at: date, calendar: calendar, timeZone: calendar.timeZone, in: context)
+        } else if let parent = try RoutineCompletionStore.completion(for: routine, dayKey: CivilDay(date: date, calendar: calendar).key, in: context) {
+            context.delete(parent)
+        }
+    }
+
+    private static func scheduledSteps(
+        for routine: Routine, on date: Date, calendar: Calendar, in context: ModelContext
+    ) throws -> [NightRoutineStep] {
+        guard routine.cardSlot == 4 else { return routine.steps }
+        let schedules = try context.fetch(FetchDescriptor<DailyStepSchedule>())
+        let links = try context.fetch(FetchDescriptor<DailyStepActivityLink>())
+        return routine.steps.filter {
+            DailyStepActivityLink.category(for: $0, in: links) == nil &&
+            DailyStepSchedule.includes($0.id, on: date, in: schedules, calendar: calendar)
+        }
     }
 
     private static func makeParentCompletionIfNeeded(

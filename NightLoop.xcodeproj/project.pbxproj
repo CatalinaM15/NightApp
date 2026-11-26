@@ -17,7 +17,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000001 /* NightLoop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NightLoop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000001 /* HomeBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HomeBase.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* NightLoopTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NightLoopTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -64,7 +64,7 @@
 		A40000000000000000000002 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000001 /* NightLoop.app */,
+				A10000000000000000000001 /* HomeBase.app */,
 				A10000000000000000000002 /* NightLoopTests.xctest */,
 			);
 			name = Products;
@@ -92,7 +92,7 @@
 			packageProductDependencies = (
 			);
 			productName = NightLoop;
-			productReference = A10000000000000000000001 /* NightLoop.app */;
+			productReference = A10000000000000000000001 /* HomeBase.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A50000000000000000000002 /* NightLoopTests */ = {
@@ -224,6 +224,7 @@
 		B00000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/NightLoop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -239,7 +240,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nightloop.NightLoop;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = NightLoop;
+				PRODUCT_NAME = HomeBase;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -248,6 +250,7 @@
 		B00000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/NightLoop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -262,7 +265,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nightloop.NightLoop;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = NightLoop;
+				PRODUCT_NAME = HomeBase;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
@@ -278,7 +282,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NightLoop.app/Contents/MacOS/NightLoop";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HomeBase.app/Contents/MacOS/HomeBase";
 			};
 			name = Debug;
 		};
@@ -292,7 +296,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.nightloop.NightLoopTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NightLoop.app/Contents/MacOS/NightLoop";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HomeBase.app/Contents/MacOS/HomeBase";
 			};
 			name = Release;
 		};
